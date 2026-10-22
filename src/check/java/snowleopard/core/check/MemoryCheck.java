@@ -61,6 +61,7 @@ public final class MemoryCheck {
         scenarioSparseStorage(ids, caller, raw);
         scenarioRoundCompress(ids, caller, raw, store, comp, rollup, d1);
         scenarioLazyArchive(ids, caller, raw, store, comp, rollup, d1);
+        scenarioQuarterLevel(ids);
         scenarioCooldown(ids, caller, raw, store, comp, rollup);
         scenarioDefaultLoad(ids, caller, raw, store, comp, rollup, d1);
         scenarioCorrections(ids, caller, store);
@@ -285,6 +286,46 @@ public final class MemoryCheck {
         check("空档（10-28）不报缺口", gaps == null || gaps.stream()
                 .noneMatch(g -> g.contains("2026-10-28")), String.valueOf(gaps));
         check("修复说明带判据", String.valueOf(data.get("note")).contains("原始在、压缩缺"), "");
+    }
+
+    // ---------------------------------------------------------------- C2 季档补齐（2026-10-23 03:55 波次补）
+
+    /**
+     * QUARTER 显式可达（用户确认"压缩每级均可主动查询"后的覆盖补齐）：
+     * 日/周/月/年各有场景，季在此补上。独立 caller + 2099 周期——防污染 2026 时间线（W43 污染教训）。
+     */
+    private static void scenarioQuarterLevel(Ids ids) {
+        System.out.println("== C2 季档：QUARTER 重建 / 查询 / 稀疏（补齐五级覆盖） ==");
+        Ids.Caller q = new Ids.Caller("mem-q");
+        FakeCompressor comp = new FakeCompressor();
+        RawLog raw = new RawLog(ids, q);
+        MemoryStore store = new MemoryStore(ids, q);
+        Rollup rollup = new Rollup(raw, store, comp, ids, q);
+
+        store.appendDay(LocalDate.of(2099, 8, 15), "### 2099-08-15\n季档测试内容");
+        Result cu = rollup.catchup(LocalDate.of(2099, 10, 5));   // Q3 已结束（判断点=季的结束时间）
+
+        String q3 = Periods.quarterKey(LocalDate.of(2099, 8, 15));
+        check("季已结束 → 季档重建（" + q3 + "）",
+                store.has(Periods.Level.QUARTER, q3), String.valueOf(cu));
+        check("季档来自存在的月档（内容可溯）",
+                store.read(Periods.Level.QUARTER, q3).contains("季档测试内容"),
+                store.read(Periods.Level.QUARTER, q3));
+        check("季档级联吸收上链（MONTH→QUARTER→YEAR）",
+                store.has(Periods.Level.YEAR, "2099")
+                        && store.read(Periods.Level.YEAR, "2099").contains("季档测试内容"),
+                store.read(Periods.Level.YEAR, "2099"));
+        check("无调用的季不出档（2099-Q4 稀疏是常态）",
+                !store.has(Periods.Level.QUARTER, "2099-Q4")
+                        && store.keys(Periods.Level.QUARTER).equals(List.of(q3)),
+                store.keys(Periods.Level.QUARTER).toString());
+        Result miss = store.readRouted(Periods.Level.QUARTER, "2099-Q4");
+        check("季档查询无档显式报不存在（不静默不造空档）",
+                miss instanceof Result.Error e && e.desc().contains("不存在"),
+                String.valueOf(miss));
+        Result hit = store.readRouted(Periods.Level.QUARTER, q3);
+        check("季档主动查询命中（readRouted 五级通用）",
+                hit instanceof Result.Ok, String.valueOf(hit));
     }
 
     // ---------------------------------------------------------------- 工具
