@@ -95,6 +95,25 @@ public final class Names {
         return java.util.Collections.unmodifiableSet(byFull.keySet());
     }
 
+    /**
+     * 歧义短名表（M7 启动报告的"重名消歧表"）：短名 → 候选全名（≥2 才算歧义）。
+     * 歧义该被显式暴露而不是等模型踩（§2.1 规则 5）。
+     */
+    public java.util.Map<String, List<String>> ambiguous() {
+        java.util.Map<String, List<String>> byShort = new LinkedHashMap<>();
+        for (String full : byFull.keySet()) {
+            byShort.computeIfAbsent(full.substring(full.lastIndexOf(':') + 1),
+                    k -> new ArrayList<>()).add(full);
+        }
+        java.util.Map<String, List<String>> out = new LinkedHashMap<>();
+        for (java.util.Map.Entry<String, List<String>> e : byShort.entrySet()) {
+            if (e.getValue().size() >= 2) {
+                out.put(e.getKey(), List.copyOf(e.getValue()));
+            }
+        }
+        return out;
+    }
+
     public List<String> rejected() {
         return java.util.Collections.unmodifiableList(rejected);
     }

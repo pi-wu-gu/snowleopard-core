@@ -220,14 +220,15 @@ public final class ToolRegistry {
         }
         Object r = names.resolve(groupPart, aliases);
         if (r == null) {
-            return null;
+            // M7：注销/未注册要"报不存在"而不是静默 null（调用方漏判 null 就是假成功温床）
+            return "工具不存在: " + groupPart + "（未注册或已注销——重新 tool_search 看可用工具）";
         }
         if (r instanceof Names.Ambiguous a) {
             return a.message();
         }
         Group g = groups.get(r);
         if (g == null) {
-            return null;
+            return "工具不存在: " + r + "（注册表与名字表不一致——请报告此状态）";
         }
         if (!isEnabled(g.full())) {
             return g.full() + "（未启用，仅名称）";
