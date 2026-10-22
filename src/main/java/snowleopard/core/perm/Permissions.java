@@ -18,7 +18,7 @@ import snowleopard.core.report.Issue;
 /**
  * 权限：能不能用（M3，2026-10-22 22:46 (UTC+8)，分析 §二.五）。
  *
- * <p>职责与工具配置**不合并**（§10.6-10）：开关归这里，参数归 {@code ToolConfig}。
+ * <p>职责与工具配置**不合并**（分析 §10.6-10）：开关归这里，参数归 {@code ToolConfig}。
  * <ul>
  *   <li>默认启动 = 全权限（ID0）；指定 ID 启动按权限文件（输入文件优先于自带）；</li>
  *   <li>未启用工具<b>仅可见名称</b>，不加载简介/详解（禁用形同虚设的反面）；</li>
@@ -100,7 +100,7 @@ public final class Permissions {
                                 }
                             }
                         }
-                        // ALWAYS_ON 禁用 = 配置失败（§二.五.3）
+                        // ALWAYS_ON 禁用 = 配置失败（分析 §二.五.3）
                         if (!groupOn && g != null && g.availability()
                                 == ToolRegistry.Availability.ALWAYS_ON) {
                             issues.add(Issue.error(full,

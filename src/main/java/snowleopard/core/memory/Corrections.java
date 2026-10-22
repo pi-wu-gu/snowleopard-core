@@ -26,7 +26,7 @@ import snowleopard.core.result.Result;
  * 读取方把命中条目以 {@code ⚠ 已纠正} 行注入（星期五的同构）。
  *
  * <p>移除走同一确认机制（真删但留审计——审计由宿主的审计日志记账，本类只管条目）。
- * 孤儿条目（指向的记忆不存在）<b>挂起 + WARN</b>，不当场丢（§8.2）。
+ * 孤儿条目（指向的记忆不存在）<b>挂起 + WARN</b>，不当场丢（分析 §8.2）。
  */
 public final class Corrections {
 
@@ -124,7 +124,7 @@ public final class Corrections {
     }
 
     /**
-     * 孤儿检查：target_ref 指向的记忆不存在 → 挂起报告（WARN 语义，不丢条目，§8.2）。
+     * 孤儿检查：target_ref 指向的记忆不存在 → 挂起报告（WARN 语义，不丢条目，分析 §8.2）。
      *
      * @param exists 判定 target_ref 是否有对应记忆的谓词
      */

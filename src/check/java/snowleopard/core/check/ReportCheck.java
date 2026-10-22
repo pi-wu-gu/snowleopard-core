@@ -98,9 +98,9 @@ public final class ReportCheck {
         List<String> search = reg.search("贝塔", null);
         check("注销后搜索搜不到（不留残影）",
                 search.stream().noneMatch(x -> x.contains("beta-mod")), search.toString());
-        Object resolved = reg.names().resolve("combat", Map.of("combat", "mod:beta-mod:combat"));
-        check("指向已注销全名的别名不再解析成功", resolved == null
-                || resolved instanceof Names.Ambiguous, String.valueOf(resolved));
+        Names.Resolution resolved = reg.names().resolve("combat", Map.of("combat", "mod:beta-mod:combat"));
+        check("指向已注销全名的别名不再解析成功", resolved instanceof Names.Ambiguous
+                || resolved instanceof Names.Resolution.NotFound, String.valueOf(resolved));
 
         // 卸载后消歧消失（只剩一份 combat）
         List<String> rep2 = StartupReport.render(reg, reg.names(), new ArrayList<>(), null, null);

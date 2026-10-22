@@ -18,7 +18,7 @@ import snowleopard.core.report.Issue;
  * <p>两级注入（分析 §一.1）：<b>组简介进上下文</b>（便宜，{@link #briefs()}），
  * <b>工具详解按需查</b>（{@link #help}）。"单轮 92% 预算花在工具介绍上"的解法就在这条分界。
  *
- * <p>搜索与权限的联动（§10.4，已采纳）：禁用的组/工具<b>搜得到名字、搜不到详解</b>
+ * <p>搜索与权限的联动（分析 §10.4，已采纳）：禁用的组/工具<b>搜得到名字、搜不到详解</b>
  * （与"未启用工具仅可见名称"同一原则）。
  */
 public final class ToolRegistry {
@@ -43,7 +43,7 @@ public final class ToolRegistry {
         }
     }
 
-    /** 工具：详解 = 结构化 {@code usage + params}（缺一即拒载，§一.3）；简介可选。 */
+    /** 工具：详解 = 结构化 {@code usage + params}（缺一即拒载，分析 §一.3）；简介可选。 */
     public record Tool(String name, String summary, String usage, Map<String, Object> params) {
 
         public boolean hasSummary() {
@@ -90,7 +90,7 @@ public final class ToolRegistry {
      * 从单个清单 JSON 装载。形态：
      * {@code {"group":"组名","gid":"<local 必填的稳定 gid>","category":"a/b","summary":"…",
      * "details":"…","availability":"NORMAL","tools":[{"name":"…","summary":"…","usage":"…","params":{…}}]}}。
-     * LOCAL 来源的 sourceId 用 manifest 的 {@code gid}（路径不进 ID，§10.1-1）。
+     * LOCAL 来源的 sourceId 用 manifest 的 {@code gid}（路径不进 ID，分析 §10.1-1）。
      */
     public boolean loadManifest(String jsonText, Names.SourceType type, String modSourceId) {
         try {
@@ -149,7 +149,7 @@ public final class ToolRegistry {
                 bad.add("组内工具重名: " + t.name());
             }
             if (t.usage() == null || t.usage().isBlank() || t.params() == null) {
-                bad.add("工具「" + t.name() + "」必须有详解（usage + params 结构化字段，§一.3）");
+                bad.add("工具「" + t.name() + "」必须有详解（usage + params 结构化字段，分析 §一.3）");
             }
         }
         return bad;
@@ -157,7 +157,7 @@ public final class ToolRegistry {
 
     // ------------------------------------------------------------- 状态
 
-    /** 启用/禁用。ALWAYS_ON 禁用被拒（§二.五.3——配置不许把核心能力关掉）。 */
+    /** 启用/禁用。ALWAYS_ON 禁用被拒（分析 §二.五.3——配置不许把核心能力关掉）。 */
     /**
      * 按来源注销（M6：模组卸载）。返回被移除的全名清单（幂等）。
      * 短名随注销释放，同全名可重新注册（卸载重装是正常生命周期）。
@@ -208,7 +208,7 @@ public final class ToolRegistry {
 
     /**
      * 统一查询入口（按需的那份）：返回组/工具详解。
-     * 禁用对象**只回名称**（§10.4：搜得到名字、搜不到详解）。
+     * 禁用对象**只回名称**（分析 §10.4：搜得到名字、搜不到详解）。
      */
     public String help(String name, Map<String, String> aliases) {
         String groupPart = name;
@@ -218,17 +218,18 @@ public final class ToolRegistry {
             groupPart = name.substring(0, dot);
             toolPart = name.substring(dot + 1);
         }
-        Object r = names.resolve(groupPart, aliases);
-        if (r == null) {
+        Names.Resolution r = names.resolve(groupPart, aliases);
+        if (r instanceof Names.Resolution.NotFound) {
             // M7：注销/未注册要"报不存在"而不是静默 null（调用方漏判 null 就是假成功温床）
             return "工具不存在: " + groupPart + "（未注册或已注销——重新 tool_search 看可用工具）";
         }
         if (r instanceof Names.Ambiguous a) {
             return a.message();
         }
-        Group g = groups.get(r);
+        String full = ((Names.Resolution.Found) r).full();
+        Group g = groups.get(full);
         if (g == null) {
-            return "工具不存在: " + r + "（注册表与名字表不一致——请报告此状态）";
+            return "工具不存在: " + full + "（注册表与名字表不一致——请报告此状态）";
         }
         if (!isEnabled(g.full())) {
             return g.full() + "（未启用，仅名称）";

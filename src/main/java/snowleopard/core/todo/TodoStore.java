@@ -23,10 +23,10 @@ import snowleopard.core.result.Result;
  * <p>条目 + <b>一层</b>子条目（星期五 todo 的同构：parentId 限一层，子条目不得再有子）。
  * 状态机 {@code PENDING → DONE / BLOCKED / FAILED}。
  *
- * <p><b>删除语义</b>（§8.3）：{@link #delete} = <b>标记不删</b>（{@code DELETED}），
+ * <p><b>删除语义</b>（分析 §8.3）：{@link #delete} = <b>标记不删</b>（{@code DELETED}），
  * 父删时子随之标记；{@link #purge} 才物理删（级联子条目）。与记忆的"不轻删"一致。
  *
- * <p>落盘 {@code ids/<ID>/todo/todo.json}（挂载随调用 ID——§九.3：工具工作目录挂
+ * <p>落盘 {@code ids/<ID>/todo/todo.json}（挂载随调用 ID——分析 §九.3：工具工作目录挂
  * 调用方 ID 的家，ID 之间互相隔离）。每条目带创建/更新时间戳（用户全局偏好）。
  */
 public final class TodoStore {

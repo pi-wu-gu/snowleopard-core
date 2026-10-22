@@ -9,7 +9,13 @@ package snowleopard.core;
  */
 public final class Version {
 
-    /** 契约版本：ToolGroupProvider / ToolBackend / HostServices / Result 等冻结接口的版本。 */
+    /**
+     * 契约版本：ToolGroupProvider / Result 等冻结接口的版本。
+     *
+     * <p><b>API note</b>（冻结契约，2026-10-23 01:55 (UTC+8) 波次 4 标注）：
+     * 破坏性契约变更才升号；provider 侧 {@code coreApi()} 不等于本值即拒载——
+     * 宿主与工具组的兼容性判定只认这一个数字。
+     */
     public static final int CORE_API = 1;
 
     private Version() {

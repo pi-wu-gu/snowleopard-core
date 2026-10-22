@@ -15,7 +15,7 @@ import snowleopard.core.ids.Ids;
 import snowleopard.core.result.Result;
 
 /**
- * 压缩记忆链（M5c，2026-10-22 23:12 (UTC+8)，分析 §三.二 / §8.2）。
+ * 压缩记忆链（M5c，2026-10-22 23:12 (UTC+8)，分析 §三.二 / 分析 §8.2）。
  *
  * <p><b>平级五层</b>（{@code memory/days|weeks|months|quarters|years/<键>/memo.md}），
  * 不嵌套成树（ISO 周跨月，见 {@link Periods}）。天档是<b>追加</b>的（每轮一段），
@@ -23,7 +23,7 @@ import snowleopard.core.result.Result;
  *
  * <p><b>稀疏性</b>：档只在"该期有原始记录"时产生；空档不建、不补、不报缺口。
  *
- * <p><b>默认加载三层</b>（§8.2 + 裁决 7"周日 + 所有未压缩周月日年"）：
+ * <p><b>默认加载三层</b>（分析 §8.2 + 裁决 7"周日 + 所有未压缩周月日年"）：
  * <ol>
  *   <li>年记忆<b>完整</b>（不许再截断）；</li>
  *   <li>紧邻的已完成天档——<b>稀疏感知</b>：昨天没有就往前找最近一个存在的；</li>
@@ -52,7 +52,7 @@ public final class MemoryStore {
 
     // ------------------------------------------------------------- 写
 
-    /** 天档追加一段（每轮结束压缩一次，§三.二.2）。 */
+    /** 天档追加一段（每轮结束压缩一次，分析 §三.二.2）。 */
     public synchronized void appendDay(LocalDate day, String segment) {
         Path f = memoPath(Periods.Level.DAY, Periods.dayKey(day));
         try {
@@ -131,7 +131,7 @@ public final class MemoryStore {
                 "truncated", truncated));
     }
 
-    // ------------------------------------------------------------- 默认加载（§8.2）
+    // ------------------------------------------------------------- 默认加载（分析 §8.2）
 
     /**
      * 三层默认加载。返回结构化清单（宿主按此装配上下文）。
@@ -204,7 +204,7 @@ public final class MemoryStore {
         return has(up, Periods.key(up, any));
     }
 
-    /** 惰性欠账：周期已结束却还没被吸收（归档推迟——§三.二 惰性推论）。 */
+    /** 惰性欠账：周期已结束却还没被吸收（归档推迟——分析 §三.二 惰性推论）。 */
     public boolean isBacklog(Periods.Level lv, String key, LocalDate today) {
         LocalDate any = anyDayOf(lv, key);
         return any != null && Periods.ended(lv, any, today) && !absorbed(lv, key, today);

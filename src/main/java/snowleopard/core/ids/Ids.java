@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * ID 文件夹（"模型的家"）与调用方 ID 注入（M1，分析 §九.1/§九.3/§9.6）。
+ * ID 文件夹（"模型的家"）与调用方 ID 注入（M1，分析 §九.1/分析 §九.3/分析 §9.6）。
  *
  * <p><b>三个不可让步的约束</b>：
  * <ul>
@@ -19,7 +19,12 @@ import java.util.Map;
  */
 public final class Ids {
 
-    /** 调用方身份：核心注入，模型无法伪造（星期五 Actor 机制的移植）。 */
+    /**
+     * 调用方身份：核心注入，模型无法伪造（星期五 Actor 机制的移植）。
+     *
+     * <p><b>API note</b>（冻结契约，2026-10-23 01:55 (UTC+8) 波次 4 标注）：
+     * caller_id 走调用上下文由 core 注入，<b>永远不是工具参数</b>——工具签名里不允许出现它。
+     */
     public record Caller(String id) {
 
         public Caller {
@@ -74,7 +79,7 @@ public final class Ids {
 
     /**
      * mkdirs：把挂载点（含按需创建的分级桶）建出来。同样受锚定约束。
-     * 分桶按需创建（稀疏性约束 §10.5）：调用方决定建哪层，这里不替日历猜。
+     * 分桶按需创建（稀疏性约束 分析 §10.5）：调用方决定建哪层，这里不替日历猜。
      */
     public Path mkdirs(Caller caller, String rel) {
         Path p = resolve(caller, rel);

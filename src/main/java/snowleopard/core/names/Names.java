@@ -97,7 +97,7 @@ public final class Names {
 
     /**
      * 歧义短名表（M7 启动报告的"重名消歧表"）：短名 → 候选全名（≥2 才算歧义）。
-     * 歧义该被显式暴露而不是等模型踩（§2.1 规则 5）。
+     * 歧义该被显式暴露而不是等模型踩（分析 §2.1 规则 5）。
      */
     public java.util.Map<String, List<String>> ambiguous() {
         java.util.Map<String, List<String>> byShort = new LinkedHashMap<>();
@@ -119,15 +119,20 @@ public final class Names {
     }
 
     /**
-     * 短名解析：唯一 → 全名；冲突 → {@link Ambiguous}（带候选）；没有 → null。
+     * 短名解析（三态，不猜）：唯一 → {@link Resolution.Found}；冲突 → {@link Ambiguous}（带候选）；
+     * 没有 → {@link Resolution.NotFound}。
+     *
+     * <p><b>API note</b>：返回 {@link Resolution} sealed 三态（2026-10-23 01:50 (UTC+8) 波次 4——
+     * 原返回 Object（String | Ambiguous | null），分支藏在 instanceof 与 null 判断里；
+     * 形状即文档，三分支必须被调用方看见）。行为未变。
      *
      * @param aliases 权限文件的 {@code aliases}（随 ID）；别名指向不存在的全名同样 Ambiguous 拒绝
      */
-    public Object resolve(String shortName, Map<String, String> aliases) {
+    public Resolution resolve(String shortName, Map<String, String> aliases) {
         String aliased = aliases == null ? null : aliases.get(shortName);
         if (aliased != null) {
             if (byFull.containsKey(aliased)) {
-                return aliased;
+                return new Resolution.Found(aliased);
             }
             return new Ambiguous(shortName, List.of(aliased), "别名指向不存在的全名");
         }
@@ -138,16 +143,31 @@ public final class Names {
             }
         }
         if (hits.size() == 1) {
-            return hits.get(0);
+            return new Resolution.Found(hits.get(0));
         }
         if (hits.isEmpty()) {
-            return null;
+            return new Resolution.NotFound(shortName);
         }
         return new Ambiguous(shortName, hits, "短名有多个来源");
     }
 
+    /**
+     * 短名解析三态：{@code Found}（唯一命中）| {@code Ambiguous}（歧义带候选）| {@code NotFound}。
+     * 返回形状即文档——调用方的 switch 覆盖了全部可能，没有第四种"没想到"。
+     */
+    public sealed interface Resolution permits Resolution.Found, Ambiguous, Resolution.NotFound {
+
+        /** 唯一命中：限定全名。 */
+        record Found(String full) implements Resolution {
+        }
+
+        /** 无命中：短名未注册或已注销。 */
+        record NotFound(String shortName) implements Resolution {
+        }
+    }
+
     /** 短名歧义：携带候选全名，模型须改用全名或在权限文件配别名。 */
-    public record Ambiguous(String shortName, List<String> candidates, String why) {
+    public record Ambiguous(String shortName, List<String> candidates, String why) implements Resolution {
 
         public String message() {
             return "「" + shortName + "」有 " + candidates.size() + " 个来源：" + candidates

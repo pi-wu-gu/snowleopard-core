@@ -5,7 +5,10 @@ import java.util.List;
 import snowleopard.core.registry.ToolRegistry;
 
 /**
- * 外部工具组接入契约（M6，2026-10-22 23:36 (UTC+8)，分析 §四 / §二.二.3）。
+ * 外部工具组接入契约（M6，2026-10-22 23:36 (UTC+8)，分析 §四 / 分析 §二.二.3）。
+ *
+ * <p><b>API note</b>（冻结契约，2026-10-23 01:55 (UTC+8) 波次 4 标注）：外部接入的**唯一**入口——
+ * 三个方法的语义（coreApi 拒载、sourceId 来源标注、describe 不含限定名）都是契约，破坏即升 CORE_API。
  *
  * <p>其他模组（经 mod-shell）或外部目录实现本接口即可自动接入，<b>来源强制标注</b>：
  * {@link #sourceId()} 非空才有资格注册，限定名由装载器按
@@ -42,7 +45,7 @@ public interface ToolGroupProvider {
                 throw new IllegalArgumentException("组短名不能为空");
             }
             if (summary == null || summary.isBlank()) {
-                throw new IllegalArgumentException("工具组必须带简介（§一.2）: " + group);
+                throw new IllegalArgumentException("工具组必须带简介（分析 §一.2）: " + group);
             }
             tools = tools == null ? List.of() : List.copyOf(tools);
             availability = availability == null ? ToolRegistry.Availability.NORMAL : availability;

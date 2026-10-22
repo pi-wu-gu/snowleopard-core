@@ -27,7 +27,7 @@ import snowleopard.core.result.Result;
  * <p>模型可自由管理的外置笔记区：建夹 / 建文 / 读 / 追加 / 删除 / 搜索，
  * 全部限定在 {@code ids/<ID>/notes/} 下（挂载随调用 ID，ID 间隔离）。
  *
- * <p><b>删除 = 两段式自确认 + 回收站</b>（§8.3）：首段返回待删清单 + {@code confirm_token}，
+ * <p><b>删除 = 两段式自确认 + 回收站</b>（分析 §8.3）：首段返回待删清单 + {@code confirm_token}，
  * 模型带令牌二次调用才执行；执行是<b>移入 {@code notes/.trash/<时间戳>/}</b> 而不是抹掉
  * （时间戳即文件夹名）。令牌绑定内容摘要——两段之间改过内容，旧令牌失效。
  *
@@ -129,7 +129,7 @@ public final class NoteStore {
     }
 
     /**
-     * 删除（两段式，§8.3）：
+     * 删除（两段式，分析 §8.3）：
      * <ul>
      *   <li>{@code token == null} → 首段：返回待删清单 + {@code confirm_token}，<b>不执行</b>；</li>
      *   <li>带 token 二次调用 → 核销令牌并移入回收站 {@code notes/.trash/<时间戳>/}。</li>
@@ -161,7 +161,7 @@ public final class NoteStore {
             if (confirmed instanceof Result.Error) {
                 return confirmed;
             }
-            // 核销成功 → 移入回收站（时间戳即文件夹名，§三.4）
+            // 核销成功 → 移入回收站（时间戳即文件夹名，分析 §三.4）
             String stamp = ts().replace(':', '-').replace(' ', '_');
             Path trashDir = ids.mkdirs(caller, TRASH + "/" + stamp);
             Path target = trashDir.resolve(p.getFileName().toString());
@@ -177,7 +177,7 @@ public final class NoteStore {
     }
 
     /**
-     * 关键词搜索（笔记不进记忆的被动检索，只能主动查——§三.4 设计决定）。
+     * 关键词搜索（笔记不进记忆的被动检索，只能主动查——分析 §三.4 设计决定）。
      * 命中文件名或正文，返回路径 + 命中行预览。
      */
     public Result search(String keyword) {

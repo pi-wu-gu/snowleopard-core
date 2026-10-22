@@ -29,7 +29,8 @@ public final class DocsCheck {
 
     /** 已退役、文档不许再教的符号（现阶段为空；退役一个登记一个）。 */
     private static final List<String> STALE = List.of(
-            "MemoryStore.read() 返回 Result"   // 已改名 readRouted——文档若教旧签名即漂移
+            "MemoryStore.read() 返回 Result",   // 已改名 readRouted——文档若教旧签名即漂移
+            "Names.resolve 返回 Object"          // 波次 4（2026-10-23）已改 sealed 三态 Names.Resolution
     );
 
     /** 开发流程与分析两文都必须出现的机制键（跨文档一致性）。 */

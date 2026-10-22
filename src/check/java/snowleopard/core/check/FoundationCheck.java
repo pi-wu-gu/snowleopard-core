@@ -51,16 +51,19 @@ public final class FoundationCheck {
                 "local:mining:combat",
                 "mod:example:combat",
                 "mod:other:notes"));
-        check("① 唯一短名直接解析", "builtin:core:session".equals(n.resolve("session", Map.of())),
-                String.valueOf(n.resolve("session", Map.of())));
+        Names.Resolution one = n.resolve("session", Map.of());
+        check("① 唯一短名直接解析", one instanceof Names.Resolution.Found f
+                        && "builtin:core:session".equals(f.full()),
+                String.valueOf(one));
 
-        Object amb = n.resolve("combat", Map.of());
+        Names.Resolution amb = n.resolve("combat", Map.of());
         check("② 短名歧义不猜、返回候选", amb instanceof Names.Ambiguous a
                         && a.candidates().containsAll(List.of("local:mining:combat", "mod:example:combat")),
                 String.valueOf(amb));
 
-        Object viaAlias = n.resolve("战斗", Map.of("战斗", "mod:example:combat"));
-        check("③ 别名消歧", "mod:example:combat".equals(viaAlias), String.valueOf(viaAlias));
+        Names.Resolution viaAlias = n.resolve("战斗", Map.of("战斗", "mod:example:combat"));
+        check("③ 别名消歧", viaAlias instanceof Names.Resolution.Found f
+                        && "mod:example:combat".equals(f.full()), String.valueOf(viaAlias));
 
         Names.RegisterResult dup = n.register(Names.Qualified.parse("mod:example:combat"));
         check("④ 同全名重名拒绝（先到者保留）", !dup.accepted()
@@ -76,8 +79,9 @@ public final class FoundationCheck {
         check("别名表校验：唯一短名遮蔽/指向不存在 → 拒（notes 2 条）",
                 aliasErrs.stream().filter(e -> e.contains("notes")).count() == 2,
                 aliasErrs.toString());
-        Object directed = n.resolve("combat", Map.of("combat", "mod:example:combat"));
-        check("别名定向歧义名生效（显式消歧）", "mod:example:combat".equals(directed),
+        Names.Resolution directed = n.resolve("combat", Map.of("combat", "mod:example:combat"));
+        check("别名定向歧义名生效（显式消歧）", directed instanceof Names.Resolution.Found f
+                        && "mod:example:combat".equals(f.full()),
                 String.valueOf(directed));
     }
 

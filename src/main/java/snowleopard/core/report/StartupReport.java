@@ -13,7 +13,7 @@ import snowleopard.core.names.Names;
 import snowleopard.core.registry.ToolRegistry;
 
 /**
- * 启动报告（M7，2026-10-22 23:58 (UTC+8)，分析 §2.1 规则 5 / §二.二.3）。
+ * 启动报告（M7，2026-10-22 23:58 (UTC+8)，分析 §2.1 规则 5 / 分析 §二.二.3）。
  *
  * <p>每轮启动输出一次：契约版本、工具组来源分布（builtin/local/mod + modid 列表）、
  * <b>重名消歧表</b>（歧义显式暴露而不是等模型踩）、配置生效来源与失效汇总、
@@ -45,7 +45,7 @@ public final class StartupReport {
         lines.add("启动报告 · " + OffsetDateTime.now(ZoneOffset.ofHours(8)).format(TS) + " (UTC+8)");
         lines.add("契约: core_api=" + Version.CORE_API + " · 发布版本 " + Version.release());
 
-        // 来源分布（§二.二.3：标注来源 modid）
+        // 来源分布（分析 §二.二.3：标注来源 modid）
         Map<Names.SourceType, List<String>> byType = new LinkedHashMap<>();
         for (ToolRegistry.Group g : registry.groups()) {
             byType.computeIfAbsent(g.id().type(), k -> new ArrayList<>()).add(g.id().sourceId());
@@ -72,7 +72,7 @@ public final class StartupReport {
         dist.append(')');
         lines.add(dist.toString());
 
-        // 重名消歧表（§2.1 规则 5）
+        // 重名消歧表（分析 §2.1 规则 5）
         Map<String, List<String>> amb = names.ambiguous();
         if (amb.isEmpty()) {
             lines.add("重名消歧表: （无歧义）");

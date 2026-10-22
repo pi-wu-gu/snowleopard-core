@@ -15,7 +15,7 @@ import snowleopard.core.result.Result;
  * <p><b>上限口径</b>（星期五 {@code ConfigPanel} 显示 0 的教训）：未配置上限时
  * 余量与轮次显示"无上限"三个字，<b>绝不显示 0</b>——0 会让模型以为没有余量而提前放弃。
  *
- * <p>预算耗尽按 {@code SEVERE} 返回（带伤运行的真用例之一，§8.4）：还能把已产出的
+ * <p>预算耗尽按 {@code SEVERE} 返回（带伤运行的真用例之一，分析 §8.4）：还能把已产出的
  * 部分结果交出去，但本轮必须收束。
  */
 public final class SessionGate {
@@ -119,7 +119,7 @@ public final class SessionGate {
     }
 
     /**
-     * 自动注入行（四个数字，规范 §三.一.3）。
+     * 自动注入行（四个数字，规范 分析 §三.一.3）。
      *
      * <pre>
      * 会话用量: 当轮消耗 1200 tok · 上句消耗 800 tok · 余量 8800 tok（上限 10000）· 轮次 3（上限 10）

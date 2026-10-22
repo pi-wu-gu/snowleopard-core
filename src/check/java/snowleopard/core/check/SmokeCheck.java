@@ -38,6 +38,10 @@ public final class SmokeCheck {
         for (Path j : sources) {
             String rel = src.relativize(j).toString().replace('\\', '/');
             String cls = rel.substring(0, rel.length() - ".java".length());
+            // package-info.java 是包级 javadoc（无注解时 javac 按设计不产 class）——不是漏编。
+            if (rel.endsWith("package-info.java")) {
+                continue;
+            }
             if (!Files.isRegularFile(out.resolve(cls + ".class"))) {
                 missing++;
                 System.out.println("  ✗ 缺 class: " + cls);

@@ -27,7 +27,7 @@ import snowleopard.core.result.Result;
  * 每轮一个 JSONL 文件 {@code round-<结束时间戳>.jsonl}，每行一个结构化条目：
  * <pre>{seq, ts, kind: thought|tool_call, payload}</pre>
  * 工具调用条目<b>不含完整输出</b>（草案二、2），但含完整时间戳。{@code seq} 即次路由
- * （单次思考及单次调用，§8.1 裁决）——因此原始记录必须是结构化行而不是纯文本。
+ * （单次思考及单次调用，分析 §8.1 裁决）——因此原始记录必须是结构化行而不是纯文本。
  *
  * <p><b>稀疏性硬约束</b>（21:28）：原始记忆必须调用过才产生——无调用日没有轮文件，
  * 这是<b>正常状态</b>而非缺口。一切压缩/补做/修复以"有原始才算存在"为第一判据。
@@ -157,7 +157,7 @@ public final class RawLog {
         return out;
     }
 
-    /** 次路由：读轮内单条（§8.1：单次思考及调用，seq 寻址）。 */
+    /** 次路由：读轮内单条（分析 §8.1：单次思考及调用，seq 寻址）。 */
     public Result readEntry(String roundKey, int seq) {
         for (Entry e : readRound(roundKey)) {
             if (e.seq() == seq) {
@@ -167,7 +167,7 @@ public final class RawLog {
         return Result.error("轮 " + roundKey + " 内没有 seq=" + seq + " 的条目");
     }
 
-    /** 按结束日期收轮（归桶按结束时间，§三.二.1）。 */
+    /** 按结束日期收轮（归桶按结束时间，分析 §三.二.1）。 */
     public List<Round> roundsEndingOn(LocalDate day) {
         List<Round> out = new ArrayList<>();
         for (Round r : listRounds()) {

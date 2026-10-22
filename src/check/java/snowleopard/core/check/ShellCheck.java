@@ -144,7 +144,7 @@ public final class ShellCheck {
         check("组从注册表消失", reg.groups().stream()
                 .noneMatch(g -> g.full().equals("mod:example-mod:combat")), "");
         check("短名释放（resolve 不再指向它）",
-                reg.names().resolve("combat", Map.of()) == null, "");
+                reg.names().resolve("combat", Map.of()) instanceof Names.Resolution.NotFound, "");
 
         // 卸载重装是正常生命周期：同全名可以再注册
         String again = loader.load(new TestModA(), Names.SourceType.MOD);

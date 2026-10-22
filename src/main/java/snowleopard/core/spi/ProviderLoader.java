@@ -93,7 +93,7 @@ public final class ProviderLoader {
         for (String full : removed) {
             loaded.remove(full);
             // 卸载记 WARN（M7 验收："WARN 汇总进报告"）——模组走了不是静默消失。
-            // 已在执行的调用允许完成（不回溯，§4.3）：注销只影响注册表。
+            // 已在执行的调用允许完成（不回溯，分析 §4.3）：注销只影响注册表。
             issues.add(Issue.warn(full, "来源 " + type.wire() + ":" + sourceId
                     + " 注销（模组卸载/移除）——该组不再可用；在执行的调用允许完成"));
         }

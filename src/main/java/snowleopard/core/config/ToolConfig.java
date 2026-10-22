@@ -22,7 +22,7 @@ import snowleopard.core.report.Issue;
  * <p>三种语义（草案原文）：没写=默认（OK）；<b>匹配失败=WARN</b>（配置跨档共用是常态，继续跑）；
  * <b>参数错误=ERROR</b>（该项拒绝生效、退回默认，不许"半生效"）。
  *
- * <p>开关归权限文件、参数归本文件（职责单点收口，§10.6-10）；
+ * <p>开关归权限文件、参数归本文件（职责单点收口，分析 §10.6-10）；
  * 键用<b>全名</b>（与重名方案 D 一致；写短名命中歧义时同样按匹配失败 WARN）。
  */
 public final class ToolConfig {
@@ -98,7 +98,7 @@ public final class ToolConfig {
             if (!switchHit.isEmpty()) {
                 // 开关归权限文件：工具配置里出现开关 → WARN 并剔除（不生效）
                 issues.add(Issue.warn(key, "「" + switchHit + "」是工具开关，归权限文件管理——"
-                        + "此处忽略（§九.2 职责切分）"));
+                        + "此处忽略（分析 §九.2 职责切分）"));
                 params = new LinkedHashMap<>(params);
                 switchHit.forEach(params::remove);
             }
