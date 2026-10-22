@@ -43,6 +43,78 @@ public final class Json {
         return (Map<String, Object>) v;
     }
 
+    /**
+     * 序列化为 JSON 文本（M4 起：TodoStore 等需要落盘）。
+     *
+     * <p>只接受 Map / List / String / Number / Boolean / null；其他类型直接抛——
+     * 不做 {@code toString} 兜底，那会产出无法解析回来的伪 JSON。
+     */
+    public static String dump(Object v) {
+        StringBuilder b = new StringBuilder();
+        write(b, v);
+        return b.toString();
+    }
+
+    private static void write(StringBuilder b, Object v) {
+        if (v == null) {
+            b.append("null");
+        } else if (v instanceof String s) {
+            quote(b, s);
+        } else if (v instanceof Boolean || v instanceof Integer || v instanceof Long
+                || v instanceof Double || v instanceof Float || v instanceof Short
+                || v instanceof Byte) {
+            b.append(v);
+        } else if (v instanceof Map<?, ?> m) {
+            b.append('{');
+            boolean first = true;
+            for (Map.Entry<?, ?> e : m.entrySet()) {
+                if (!first) {
+                    b.append(',');
+                }
+                first = false;
+                quote(b, String.valueOf(e.getKey()));
+                b.append(':');
+                write(b, e.getValue());
+            }
+            b.append('}');
+        } else if (v instanceof Iterable<?> it) {
+            b.append('[');
+            boolean first = true;
+            for (Object o : it) {
+                if (!first) {
+                    b.append(',');
+                }
+                first = false;
+                write(b, o);
+            }
+            b.append(']');
+        } else {
+            throw new IllegalArgumentException("Json.dump 不支持的类型: " + v.getClass());
+        }
+    }
+
+    private static void quote(StringBuilder b, String s) {
+        b.append('"');
+        for (int k = 0; k < s.length(); k++) {
+            char c = s.charAt(k);
+            switch (c) {
+                case '"' -> b.append("\\\"");
+                case '\\' -> b.append("\\\\");
+                case '\n' -> b.append("\\n");
+                case '\r' -> b.append("\\r");
+                case '\t' -> b.append("\\t");
+                default -> {
+                    if (c < 0x20) {
+                        b.append(String.format("\\u%04x", (int) c));
+                    } else {
+                        b.append(c);
+                    }
+                }
+            }
+        }
+        b.append('"');
+    }
+
     private Object value() {
         if (i >= s.length()) {
             throw err("意外的输入结尾");
