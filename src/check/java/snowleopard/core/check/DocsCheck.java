@@ -45,11 +45,13 @@ public final class DocsCheck {
         Path analysis = root.resolve("docs/工具组支持可行性分析-2026-10-22.md");
         Path devflow = root.resolve("docs/开发流程-2026-10-22.md");
         Path concept = root.resolve("docs/概念地图-2026-10-23.md");
+        Path guide = root.resolve("docs/接入指南-2026-10-23.md");
 
         String rm = read(readme);
         String an = read(analysis);
         String dv = read(devflow);
         String cm = read(concept);
+        String ag = read(guide);
 
         System.out.println("== 1 README 的 AI 声明与里程碑表 ==");
         check("README 存在", rm != null, String.valueOf(readme));
@@ -67,9 +69,9 @@ public final class DocsCheck {
         check("分析带时间戳记录（UTC+8）", an != null && an.contains("(UTC+8)"), "");
         check("开发流程带时间戳记录（UTC+8）", dv != null && dv.contains("(UTC+8)"), "");
 
-        System.out.println("== 3 README/概念地图 的类名必须真实存在 ==");
+        System.out.println("== 3 README/概念地图/接入指南 的类名必须真实存在 ==");
         List<String> missing = new ArrayList<>();
-        for (String doc : new String[]{rm, cm}) {
+        for (String doc : new String[]{rm, cm, ag}) {
             if (doc == null) {
                 continue;
             }
@@ -93,7 +95,7 @@ public final class DocsCheck {
 
         System.out.println("== 5 使用类文档不提废弃符号 ==");
         List<String> staleHits = new ArrayList<>();
-        for (String doc : new String[]{rm, an, dv, cm}) {
+        for (String doc : new String[]{rm, an, dv, cm, ag}) {
             if (doc == null) {
                 continue;
             }
@@ -115,6 +117,14 @@ public final class DocsCheck {
         }
         boolean hasRedline = cm != null && cm.contains("接入红线");
         check("概念地图含接入红线章节", hasRedline, "");
+
+        System.out.println("== 7 接入指南纳管（波次 2，2026-10-23 01:35） ==");
+        check("接入指南存在", ag != null, String.valueOf(guide));
+        check("接入指南带时间戳记录（UTC+8）", ag != null && ag.contains("(UTC+8)"), "");
+        check("接入指南引用红线而不复制（单一事实源在概念地图）",
+                ag != null && ag.contains("接入红线"), "");
+        check("接入指南指向可运行示例（examples 即规格）",
+                ag != null && ag.contains("examples/hello-provider"), "");
 
         System.out.println("PASS docs: 通过 " + pass + " · 失败 " + fail);
         if (fail > 0) {
