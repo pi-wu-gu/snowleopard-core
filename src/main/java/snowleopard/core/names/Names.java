@@ -83,6 +83,14 @@ public final class Names {
         return new RegisterResult(true, full, null);
     }
 
+    /**
+     * 注销（M6：模组卸载）。返回是否真删了——没有就是幂等成功。
+     * 注销后短名即释放，同全名可重新注册（卸载重装是正常生命周期）。
+     */
+    public boolean unregister(String full) {
+        return byFull.remove(full) != null;
+    }
+
     public Set<String> fullNames() {
         return java.util.Collections.unmodifiableSet(byFull.keySet());
     }

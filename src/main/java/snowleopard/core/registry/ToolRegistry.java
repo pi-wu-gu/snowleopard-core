@@ -158,6 +158,24 @@ public final class ToolRegistry {
     // ------------------------------------------------------------- 状态
 
     /** 启用/禁用。ALWAYS_ON 禁用被拒（§二.五.3——配置不许把核心能力关掉）。 */
+    /**
+     * 按来源注销（M6：模组卸载）。返回被移除的全名清单（幂等）。
+     * 短名随注销释放，同全名可重新注册（卸载重装是正常生命周期）。
+     */
+    public List<String> unregisterSource(Names.SourceType type, String sourceId) {
+        List<String> removed = new ArrayList<>();
+        for (String full : new ArrayList<>(groups.keySet())) {
+            Group g = groups.get(full);
+            if (g.id().type() == type && g.id().sourceId().equals(sourceId)) {
+                groups.remove(full);
+                enabled.remove(full);
+                names.unregister(full);
+                removed.add(full);
+            }
+        }
+        return removed;
+    }
+
     public boolean setEnabled(String groupFull, boolean on) {
         Group g = groups.get(groupFull);
         if (g == null) {
