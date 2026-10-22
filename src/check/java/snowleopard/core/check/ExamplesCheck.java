@@ -71,37 +71,41 @@ public final class ExamplesCheck {
         }
         check("示例只靠核心 jar 编译通过", compiled, "");
 
-        // ② 隔离运行：父加载器=bootstrap（JDK 类可见；检查树不可见）
+        // ② 隔离运行：父加载器=bootstrap（JDK 类可见；检查树不可见）。
+        //    双路径：HelloMain（门面）与 HelloManualMain（手动展开式，S1 保活）——行为必须一致。
         if (compiled) {
-            deleteRecursively(home);
-            Files.createDirectories(home);
-            String captured;
-            try (URLClassLoader cl = new URLClassLoader(new URL[]{
-                    jar.toUri().toURL(), out.toUri().toURL()}, null)) {
-                Class<?> mainCls = cl.loadClass("HelloMain");
-                ByteArrayOutputStream buf = new ByteArrayOutputStream();
-                PrintStream old = System.out;
-                try {
-                    System.setOut(new PrintStream(buf, true, StandardCharsets.UTF_8));
-                    mainCls.getMethod("main", String[].class)
-                            .invoke(null, (Object) new String[]{home.toString()});
-                } finally {
-                    System.setOut(old);
+            for (String mainClsName : new String[]{"HelloMain", "HelloManualMain"}) {
+                deleteRecursively(home);
+                Files.createDirectories(home);
+                String captured;
+                try (URLClassLoader cl = new URLClassLoader(new URL[]{
+                        jar.toUri().toURL(), out.toUri().toURL()}, null)) {
+                    Class<?> mainCls = cl.loadClass(mainClsName);
+                    ByteArrayOutputStream buf = new ByteArrayOutputStream();
+                    PrintStream old = System.out;
+                    try {
+                        System.setOut(new PrintStream(buf, true, StandardCharsets.UTF_8));
+                        mainCls.getMethod("main", String[].class)
+                                .invoke(null, (Object) new String[]{home.toString()});
+                    } finally {
+                        System.setOut(old);
+                    }
+                    captured = buf.toString(StandardCharsets.UTF_8);
                 }
-                captured = buf.toString(StandardCharsets.UTF_8);
+                System.out.println("  ---- " + mainClsName + " 输出 ----");
+                for (String line : captured.split("\n")) {
+                    System.out.println("  | " + line.trim());
+                }
+                String tag = mainClsName + " ";
+                check(tag + "输出含装载全名（装载器拼限定名）",
+                        captured.contains("装载: local:hello-demo:echo"), "实际: " + firstLine(captured, "装载"));
+                check(tag + "输出含 help 组头（查询注入面）",
+                        captured.contains("组 local:hello-demo:echo"), "实际: " + firstLine(captured, "help"));
+                check(tag + "输出含启动报告",
+                        captured.contains("启动报告"), "实际: " + firstLine(captured, "启动报告"));
+                check(tag + "todo add → Ok（Result 四级之首）",
+                        captured.contains("todo add → Ok"), "实际: " + firstLine(captured, "todo"));
             }
-            System.out.println("  ---- HelloMain 输出 ----");
-            for (String line : captured.split("\n")) {
-                System.out.println("  | " + line.trim());
-            }
-            check("输出含装载全名（装载器拼限定名）",
-                    captured.contains("装载: local:hello-demo:echo"), "实际: " + firstLine(captured, "装载"));
-            check("输出含 help 组头（查询注入面）",
-                    captured.contains("组 local:hello-demo:echo"), "实际: " + firstLine(captured, "help"));
-            check("输出含启动报告",
-                    captured.contains("启动报告"), "实际: " + firstLine(captured, "启动报告"));
-            check("todo add → Ok（Result 四级之首）",
-                    captured.contains("todo add → Ok"), "实际: " + firstLine(captured, "todo"));
         }
 
         System.out.println("PASS examples: 通过 " + pass + " · 失败 " + fail);
