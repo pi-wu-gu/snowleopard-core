@@ -21,6 +21,8 @@ import java.util.regex.Pattern;
  *   <li>跨文档一致性：开发流程提到的机制键（confirm_token / session_yield / memory_repair / purge）
  *       分析文档也必须有（漂移的常见形态是"一处改了另一处没跟"）；</li>
  *   <li>废弃符号不得出现在使用类文档（清单现为空；退役符号时往里加）。</li>
+ *   <li>概念地图纳管（2026-10-23 01:20 (UTC+8) 波次 1）：存在 + 带时间戳 + 反引号类名真实
+ *       + 四机制键齐全——新增使用类文档一律纳管，防漏检（星期五 B8 白名单的镜像教训）。</li>
  * </ol>
  */
 public final class DocsCheck {
@@ -38,14 +40,16 @@ public final class DocsCheck {
     private static int fail;
 
     public static void main(String[] args) throws Exception {
-        Path root = Path.of("").toAbsolutePath();
+        Path root = Path.of(args.length > 0 ? args[0] : ".").toAbsolutePath().normalize();
         Path readme = root.resolve("README.md");
         Path analysis = root.resolve("docs/工具组支持可行性分析-2026-10-22.md");
         Path devflow = root.resolve("docs/开发流程-2026-10-22.md");
+        Path concept = root.resolve("docs/概念地图-2026-10-23.md");
 
         String rm = read(readme);
         String an = read(analysis);
         String dv = read(devflow);
+        String cm = read(concept);
 
         System.out.println("== 1 README 的 AI 声明与里程碑表 ==");
         check("README 存在", rm != null, String.valueOf(readme));
@@ -63,10 +67,13 @@ public final class DocsCheck {
         check("分析带时间戳记录（UTC+8）", an != null && an.contains("(UTC+8)"), "");
         check("开发流程带时间戳记录（UTC+8）", dv != null && dv.contains("(UTC+8)"), "");
 
-        System.out.println("== 3 README 的类名必须真实存在 ==");
+        System.out.println("== 3 README/概念地图 的类名必须真实存在 ==");
         List<String> missing = new ArrayList<>();
-        if (rm != null) {
-            Matcher mt = Pattern.compile("`([A-Z][A-Za-z0-9]{2,})`").matcher(rm);
+        for (String doc : new String[]{rm, cm}) {
+            if (doc == null) {
+                continue;
+            }
+            Matcher mt = Pattern.compile("`([A-Z][A-Za-z0-9]{2,})`").matcher(doc);
             while (mt.find()) {
                 String cls = mt.group(1);
                 if (!classExists(root, cls)) {
@@ -86,7 +93,7 @@ public final class DocsCheck {
 
         System.out.println("== 5 使用类文档不提废弃符号 ==");
         List<String> staleHits = new ArrayList<>();
-        for (String doc : new String[]{rm, an, dv}) {
+        for (String doc : new String[]{rm, an, dv, cm}) {
             if (doc == null) {
                 continue;
             }
@@ -99,6 +106,15 @@ public final class DocsCheck {
             }
         }
         check("废弃符号 0 命中", staleHits.isEmpty(), staleHits.toString());
+
+        System.out.println("== 6 概念地图纳管（波次 1，2026-10-23 01:20） ==");
+        check("概念地图存在", cm != null, String.valueOf(concept));
+        check("概念地图带时间戳记录（UTC+8）", cm != null && cm.contains("(UTC+8)"), "");
+        for (String key : SHARED_KEYS) {
+            check("概念地图收录机制键 " + key, cm != null && cm.contains(key), "");
+        }
+        boolean hasRedline = cm != null && cm.contains("接入红线");
+        check("概念地图含接入红线章节", hasRedline, "");
 
         System.out.println("PASS docs: 通过 " + pass + " · 失败 " + fail);
         if (fail > 0) {
