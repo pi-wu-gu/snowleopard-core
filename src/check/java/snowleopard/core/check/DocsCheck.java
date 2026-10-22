@@ -47,21 +47,27 @@ public final class DocsCheck {
         Path devflow = root.resolve("docs/开发流程-2026-10-22.md");
         Path concept = root.resolve("docs/概念地图-2026-10-23.md");
         Path guide = root.resolve("docs/接入指南-2026-10-23.md");
+        Path index = root.resolve("docs/INDEX.md");
+        Path spec = root.resolve("docs/行为规格清单-2026-10-23.md");
 
         String rm = read(readme);
         String an = read(analysis);
         String dv = read(devflow);
         String cm = read(concept);
         String ag = read(guide);
+        String idx = read(index);
+        String specTxt = read(spec);
 
-        System.out.println("== 1 README 的 AI 声明与里程碑表 ==");
+        System.out.println("== 1 README 的 AI 声明（里程碑表已迁开发流程 §九） ==");
         check("README 存在", rm != null, String.valueOf(readme));
         if (rm != null) {
             check("「几乎完全由 AI 完成」声明在（用户硬要求）",
                     rm.contains("几乎完全由 AI 完成"), "");
-            for (String m : List.of("M0", "M1", "M2", "M3", "M4", "M5", "M6", "M7")) {
-                check("里程碑表含 " + m, rm.contains("| " + m) || rm.contains(m + " "), "");
-            }
+        }
+        // 里程碑表 2026-10-23 归档进开发流程（README 瘦身=快速开始；判据与文档同轮迁移）
+        check("里程碑状态表在开发流程", dv != null && dv.contains("里程碑状态"), "");
+        for (String m : List.of("M0", "M1", "M2", "M3", "M4", "M5", "M6", "M7")) {
+            check("里程碑表含 " + m, dv != null && (dv.contains("| " + m) || dv.contains(m + " ")), "");
         }
 
         System.out.println("== 2 设计文档存在且带时间戳 ==");
@@ -70,9 +76,9 @@ public final class DocsCheck {
         check("分析带时间戳记录（UTC+8）", an != null && an.contains("(UTC+8)"), "");
         check("开发流程带时间戳记录（UTC+8）", dv != null && dv.contains("(UTC+8)"), "");
 
-        System.out.println("== 3 README/概念地图/接入指南 的类名必须真实存在 ==");
+        System.out.println("== 3 使用类文档的类名必须真实存在 ==");
         List<String> missing = new ArrayList<>();
-        for (String doc : new String[]{rm, cm, ag}) {
+        for (String doc : new String[]{rm, cm, ag, idx, specTxt}) {
             if (doc == null) {
                 continue;
             }
@@ -96,7 +102,7 @@ public final class DocsCheck {
 
         System.out.println("== 5 使用类文档不提废弃符号 ==");
         List<String> staleHits = new ArrayList<>();
-        for (String doc : new String[]{rm, an, dv, cm, ag}) {
+        for (String doc : new String[]{rm, an, dv, cm, ag, idx, specTxt}) {
             if (doc == null) {
                 continue;
             }
@@ -127,6 +133,26 @@ public final class DocsCheck {
         check("接入指南指向可运行示例（examples 即规格）",
                 ag != null && ag.contains("examples/hello-provider"), "");
 
+        System.out.println("== 8 文档地图纳管（波次 C，2026-10-23 02:30） ==");
+        check("INDEX 存在", idx != null, String.valueOf(index));
+        check("INDEX 带时间戳记录（UTC+8）", idx != null && idx.contains("(UTC+8)"), "");
+        check("INDEX 三栏分轨（上手/参考/史料）", idx != null
+                && idx.contains("上手") && idx.contains("参考") && idx.contains("史料"), "");
+        check("INDEX 点名核心使用文档", idx != null
+                && idx.contains("概念地图") && idx.contains("接入指南") && idx.contains("行为规格清单"), "");
+
+        System.out.println("== 9 行为规格清单纳管（波次 E，2026-10-23 02:30） ==");
+        check("行为规格清单存在", specTxt != null, String.valueOf(spec));
+        check("规格清单带时间戳记录（UTC+8）", specTxt != null && specTxt.contains("(UTC+8)"), "");
+        List<String> noNamed = new ArrayList<>();
+        for (String cls : List.of("SmokeCheck", "FoundationCheck", "RegistryCheck", "SafetyCheck",
+                "WorkCheck", "MemoryCheck", "ShellCheck", "ReportCheck", "DocsCheck", "ExamplesCheck")) {
+            if (specTxt == null || !specTxt.contains(cls)) {
+                noNamed.add(cls);
+            }
+        }
+        check("规格清单点名全部 10 个 Check 类（0 漏）", noNamed.isEmpty(), noNamed.toString());
+
         System.out.println("PASS docs: 通过 " + pass + " · 失败 " + fail);
         if (fail > 0) {
             System.exit(1);
@@ -141,14 +167,19 @@ public final class DocsCheck {
         }
     }
 
-    /** 类名是否存在于 src/main/java（按文件名找）。 */
+    /** 类名是否存在于 src/main/java 或 src/check/java（按文件名找；检查器也是真类）。 */
     private static boolean classExists(Path root, String cls) {
-        Path src = root.resolve("src/main/java");
-        try (var walk = Files.walk(src)) {
-            return walk.anyMatch(p -> p.getFileName().toString().equals(cls + ".java"));
-        } catch (IOException e) {
-            return false;
+        for (String tree : new String[]{"src/main/java", "src/check/java"}) {
+            Path src = root.resolve(tree);
+            try (var walk = Files.walk(src)) {
+                if (walk.anyMatch(p -> p.getFileName().toString().equals(cls + ".java"))) {
+                    return true;
+                }
+            } catch (IOException e) {
+                // 树不存在则跳过
+            }
         }
+        return false;
     }
 
     private static void check(String name, boolean ok, String detail) {
