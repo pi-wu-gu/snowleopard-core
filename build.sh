@@ -116,7 +116,7 @@ if [ "${1:-}" = "publish" ]; then
     M2="$DIST/m2"
     D="$M2/snowleopard/core/snowleopard-core/$VERSION"
     rm -rf "$M2"; mkdir -p "$D"
-    cp "$DIST/snowleopard-core.jar" "$D/"
+    cp "$DIST/snowleopard-core.jar" "$D/snowleopard-core-$VERSION.jar"
     cat > "$D/snowleopard-core-$VERSION.pom" <<EOF
 <project xmlns="http://maven.apache.org/POM/4.0.0">
   <modelVersion>4.0.0</modelVersion>
