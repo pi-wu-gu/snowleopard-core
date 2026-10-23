@@ -80,6 +80,8 @@ public final class Permissions {
         String source = use == null ? "none(全禁)" : use.getFileName().toString();
         Map<String, Set<String>> eff = new LinkedHashMap<>();
         List<Issue> issues = new ArrayList<>();
+        /** 权限文件**明确提到**的组（提到即表态：生效或被关，都不再走自带默认）。 */
+        Set<String> mentioned = new LinkedHashSet<>();
 
         if (use != null && Files.isRegularFile(use)) {
             try {
@@ -88,6 +90,7 @@ public final class Permissions {
                 if (groups instanceof Map<?, ?> gm) {
                     for (Map.Entry<?, ?> e : gm.entrySet()) {
                         String full = String.valueOf(e.getKey());
+                        mentioned.add(full);
                         // 匹配失败 = WARN（配置跨档共用常态）；不锁死整表
                         if (registry.names().fullNames().contains(full) == false) {
                             issues.add(Issue.warn(full, "权限条目匹配不到任何工具组（" + source + "）"));
@@ -127,6 +130,15 @@ public final class Permissions {
                 }
             } catch (IOException | IllegalArgumentException e) {
                 issues.add(Issue.error(String.valueOf(use), "权限文件不可读: " + e.getMessage()));
+            }
+        }
+        // 自带默认（草案原文"无外部设置即使用其自身默认设置"）：builtin 来源的组，
+        // 权限文件**没提到**就按其自身默认（注册表默认开）——不能因为用户文件只列了模组
+        // 就让 core 自己的会话/记忆/任务/笔记全灭。外部组没提到仍然关（不猜第三方能力）。
+        for (ToolRegistry.Group g : registry.groups()) {
+            if (g.id().type() == snowleopard.core.names.Names.SourceType.BUILTIN
+                    && !mentioned.contains(g.full())) {
+                eff.put(g.full(), Set.of("*"));
             }
         }
         return new Permissions(registry, new Table(eff, issues, source));

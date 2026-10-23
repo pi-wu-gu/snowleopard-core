@@ -4,6 +4,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import snowleopard.core.builtin.BuiltinGroups;
+import snowleopard.core.builtin.BuiltinHome;
+import snowleopard.core.builtin.BuiltinToolkit;
 import snowleopard.core.confirm.ConfirmGate;
 import snowleopard.core.ids.Ids;
 import snowleopard.core.memory.Compressor;
@@ -19,6 +22,7 @@ import snowleopard.core.report.StartupReport;
 import snowleopard.core.result.Result;
 import snowleopard.core.session.SessionGate;
 import snowleopard.core.spi.ProviderLoader;
+import snowleopard.core.spi.ToolGroupProvider;
 import snowleopard.core.todo.TodoStore;
 
 /**
@@ -55,7 +59,7 @@ public final class SnowLeopard {
     }
 
     /**
-     * 标准装配入口。顺序即依赖：Ids → ToolRegistry → ProviderLoader → Permissions。
+     * 标准装配入口。顺序即依赖：Ids → ToolRegistry → <b>内置四组</b> → ProviderLoader → Permissions。
      *
      * @param storageRoot 存储根（全部 ID 家的父目录）
      * @param options     装配选项——<b>必填</b>：权限政策不设静默默认（S3，全开/文件二选一要显式说）
@@ -70,6 +74,12 @@ public final class SnowLeopard {
         Ids ids = Ids.at(storageRoot);
         ToolRegistry registry = new ToolRegistry();
         ProviderLoader loader = new ProviderLoader(registry);
+        // 内置四组（builtin:core:session|memory|todo|notes）走与外部 provider 同一条装载路径——
+        // 不享受特权通道（分析 §4.4：内置不是绕过注册表的影子能力）。
+        // 必须在 Permissions 之前：权限文件要按已注册的组名校验条目，全权限快照也要罩住它们。
+        for (ToolGroupProvider p : BuiltinGroups.all()) {
+            loader.load(p, Names.SourceType.BUILTIN);
+        }
         Permissions permissions = options.materializePermissions(registry);
         return new SnowLeopard(ids, registry, loader, permissions, options);
     }
@@ -118,8 +128,11 @@ public final class SnowLeopard {
      * caller 级句柄：能力对象全挂在调用 ID 的家下、互相隔离（红线 3）。
      * 持有会话与确认状态（{@link #session()}/{@link #confirm()}）——一次会话一个 scope；
      * 存储类是文件视图，重建不丢数据。
+     *
+     * <p>实现 {@link BuiltinHome}：内置四组的执行面（{@link #tools()}）只认这一个接口，
+     * 依赖方向单向（门面 → 内置包），不制造包级双向依赖。
      */
-    public static final class CallerScope {
+    public static final class CallerScope implements BuiltinHome {
 
         private final Ids.Caller caller;
         private final Path home;
@@ -184,6 +197,15 @@ public final class SnowLeopard {
 
         public ConfirmGate confirm() {
             return confirm;
+        }
+
+        /**
+         * 内置四组的执行面（{@code builtin:core:session|memory|todo|notes}）。
+         * 宿主按注册表拿到的 schema 路由到 {@link BuiltinToolkit#call}——
+         * 一次装配一个实例，执行面只认本 scope 的家（红线 3）。
+         */
+        public BuiltinToolkit tools() {
+            return new BuiltinToolkit(this);
         }
     }
 

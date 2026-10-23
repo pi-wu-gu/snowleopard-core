@@ -49,6 +49,7 @@ public final class DocsCheck {
         Path guide = root.resolve("docs/接入指南-2026-10-23.md");
         Path index = root.resolve("docs/INDEX.md");
         Path spec = root.resolve("docs/行为规格清单-2026-10-23.md");
+        Path builtin = root.resolve("docs/内置工具组-2026-10-23.md");
 
         String rm = read(readme);
         String an = read(analysis);
@@ -57,6 +58,7 @@ public final class DocsCheck {
         String ag = read(guide);
         String idx = read(index);
         String specTxt = read(spec);
+        String bt = read(builtin);
 
         System.out.println("== 1 README 的 AI 声明（里程碑表已迁开发流程 §九） ==");
         check("README 存在", rm != null, String.valueOf(readme));
@@ -73,12 +75,14 @@ public final class DocsCheck {
         System.out.println("== 2 设计文档存在且带时间戳 ==");
         check("可行性分析存在", an != null, String.valueOf(analysis));
         check("开发流程存在", dv != null, String.valueOf(devflow));
+        check("内置工具组文档存在（使用类，新增工具必须同步）", bt != null, String.valueOf(builtin));
+        check("内置工具组文档带时间戳记录（UTC+8）", bt != null && bt.contains("(UTC+8)"), "");
         check("分析带时间戳记录（UTC+8）", an != null && an.contains("(UTC+8)"), "");
         check("开发流程带时间戳记录（UTC+8）", dv != null && dv.contains("(UTC+8)"), "");
 
         System.out.println("== 3 使用类文档的类名必须真实存在 ==");
         List<String> missing = new ArrayList<>();
-        for (String doc : new String[]{rm, cm, ag, idx, specTxt}) {
+        for (String doc : new String[]{rm, cm, ag, idx, specTxt, bt}) {
             if (doc == null) {
                 continue;
             }
@@ -102,7 +106,7 @@ public final class DocsCheck {
 
         System.out.println("== 5 使用类文档不提废弃符号 ==");
         List<String> staleHits = new ArrayList<>();
-        for (String doc : new String[]{rm, an, dv, cm, ag, idx, specTxt}) {
+        for (String doc : new String[]{rm, an, dv, cm, ag, idx, specTxt, bt}) {
             if (doc == null) {
                 continue;
             }
@@ -145,13 +149,29 @@ public final class DocsCheck {
         check("行为规格清单存在", specTxt != null, String.valueOf(spec));
         check("规格清单带时间戳记录（UTC+8）", specTxt != null && specTxt.contains("(UTC+8)"), "");
         List<String> noNamed = new ArrayList<>();
-        for (String cls : List.of("SmokeCheck", "FoundationCheck", "RegistryCheck", "SafetyCheck",
-                "WorkCheck", "MemoryCheck", "ShellCheck", "ReportCheck", "DocsCheck", "ExamplesCheck")) {
+        for (String cls : List.of("BuiltinCheck", "SmokeCheck", "FoundationCheck", "RegistryCheck",
+                "SafetyCheck", "WorkCheck", "MemoryCheck", "ShellCheck", "ReportCheck",
+                "DocsCheck", "ExamplesCheck")) {
             if (specTxt == null || !specTxt.contains(cls)) {
                 noNamed.add(cls);
             }
         }
-        check("规格清单点名全部 10 个 Check 类（0 漏）", noNamed.isEmpty(), noNamed.toString());
+        check("规格清单点名全部 11 个 Check 类（0 漏）", noNamed.isEmpty(), noNamed.toString());
+
+        System.out.println("== 10 内置工具组文档纳管（2026-10-23 19:40） ==");
+        List<String> noGroup = new ArrayList<>();
+        for (String g : List.of("builtin:core:session", "builtin:core:memory",
+                "builtin:core:todo", "builtin:core:notes")) {
+            if (bt == null || !bt.contains(g)) {
+                noGroup.add(g);
+            }
+        }
+        check("内置文档点名四组全名（0 漏）", noGroup.isEmpty(), noGroup.toString());
+        check("内置文档写清 18 工具口径（清单即政策）", bt != null && bt.contains("18 工具"), "");
+        check("内置文档明确记账\"壳侧未接\"（未做的不许当做过）",
+                bt != null && bt.contains("壳侧尚未接四组"), "");
+        check("内置文档引用分析规范（单一事实源在分析文档）",
+                bt != null && bt.contains("分析 §三"), "");
 
         System.out.println("PASS docs: 通过 " + pass + " · 失败 " + fail);
         if (fail > 0) {

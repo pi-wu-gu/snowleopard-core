@@ -113,6 +113,19 @@ public final class SessionGate {
         return new Usage(roundTokens, lastUtteranceTokens, totalTokens, turns);
     }
 
+    /**
+     * 剩余 token（{@code -1} = 无上限）。注入行与工具面共用这一口径——
+     * "上限未配置时显示无上限而不是 0"（星期五 ConfigPanel 显示 0 的教训）。
+     */
+    public synchronized long remainingTokens() {
+        return budget.tokensLimited() ? Math.max(0, budget.maxTokens() - totalTokens) : -1L;
+    }
+
+    /** 预算快照（宿主展示用；配额本身不可在运行期改——改预算=重建会话）。 */
+    public Budget budget() {
+        return budget;
+    }
+
     /** 收束原因（空 = 未收束）。 */
     public synchronized String stopReason() {
         return shouldStop() ? stopReasonOr() : "";
