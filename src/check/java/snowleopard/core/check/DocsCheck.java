@@ -170,7 +170,7 @@ public final class DocsCheck {
         check("内置文档点名六组全名（0 漏）", noGroup.isEmpty(), noGroup.toString());
         check("内置文档写清 32 工具口径（清单即政策）", bt != null && bt.contains("32 工具"), "");
         check("内置文档明确记账\"壳侧未接\"（未做的不许当做过）",
-                bt != null && bt.contains("壳侧只接了前四组"), "");
+                bt != null && bt.contains("六组全部已接壳"), "");
         check("内置文档引用分析规范（单一事实源在分析文档）",
                 bt != null && bt.contains("分析 §三"), "");
 
