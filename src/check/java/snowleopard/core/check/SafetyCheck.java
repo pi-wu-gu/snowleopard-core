@@ -93,6 +93,10 @@ public final class SafetyCheck {
                 def.table().allows("builtin:core:memory", "read")
                         && def.table().allows("mod:example:combat", "attack"),
                 def.table().toString());
+        check("① 全开表对后注册组同样生效（defaultAll 动态全开，2026-10-23 修）",
+                Permissions.defaultAll(new ToolRegistry()).table()
+                        .allows("mod:late:group", "any_tool"),
+                "注册时序不该让 allowAll 变成全拒");
 
         // ② 指定 ID：权限文件（input 优先）
         Path bundled = tmp.resolve("perm-bundled.json");

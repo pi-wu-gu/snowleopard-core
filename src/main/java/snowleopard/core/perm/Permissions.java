@@ -31,10 +31,23 @@ public final class Permissions {
     /** 一份生效的权限表（快照：热更新换新表，旧表继续服务在执行的调用）。 */
     public record Table(Map<String, Set<String>> enabledTools,
                         List<Issue> issues,
-                        String source) {
+                        String source,
+                        boolean allOpen) {
 
-        /** 该工具是否启用（组全名 + 工具名；组级 "*" 表示全组）。 */
+        /** 兼容旧三参形态（=非全开）。 */
+        public Table(Map<String, Set<String>> enabledTools, List<Issue> issues, String source) {
+            this(enabledTools, issues, source, false);
+        }
+
+        /**
+         * 该工具是否启用（组全名 + 工具名；组级 "*" 表示全组）。
+         * {@code allOpen}（defaultAll）对<b>之后注册的组</b>同样放行——
+         * "全权限"的契约覆盖注册时序（2026-10-23 修：快照曾把后注册组 fail-closed 全拒）。
+         */
         public boolean allows(String groupFull, String tool) {
+            if (allOpen) {
+                return true;
+            }
             Set<String> s = enabledTools.get(groupFull);
             return s != null && (s.contains("*") || s.contains(tool));
         }
@@ -48,14 +61,14 @@ public final class Permissions {
         this.current = initial;
     }
 
-    /** 默认启动：完全工具访问权限（ID0）。 */
+    /** 默认启动：完全工具访问权限（ID0）——含此后注册的组（allOpen）。 */
     public static Permissions defaultAll(ToolRegistry registry) {
         Map<String, Set<String>> all = new LinkedHashMap<>();
         for (ToolRegistry.Group g : registry.groups()) {
             all.put(g.full(), Set.of("*"));
         }
         return new Permissions(registry,
-                new Table(all, List.of(), "default(id0, 全权限)"));
+                new Table(all, List.of(), "default(id0, 全权限)", true));
     }
 
     /**
