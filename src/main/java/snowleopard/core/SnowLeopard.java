@@ -144,6 +144,10 @@ public final class SnowLeopard {
         private final Corrections corrections;
         private final SessionGate session;
         private final ConfirmGate confirm;
+        private final snowleopard.core.wake.WakeStore wake;
+        private final snowleopard.core.group.GroupStore groups;
+        /** 唤起链（core 注入；被唤起启动的会话为 [from, self]）。 */
+        private volatile List<String> wakeChain;
 
         private CallerScope(SnowLeopard core, Ids.Caller caller) {
             this.caller = caller;
@@ -156,10 +160,20 @@ public final class SnowLeopard {
             this.corrections = new Corrections(core.ids, caller);
             this.session = new SessionGate(core.options.budget());
             this.confirm = new ConfirmGate();
+            // 协作面：请求/消息落 shared/，策略与已读位落各自的家（红线 3 对核心组件的隔离不受影响）
+            this.wake = new snowleopard.core.wake.WakeStore(core.ids, core.options.runtime());
+            this.groups = new snowleopard.core.group.GroupStore(core.ids);
+            this.wakeChain = List.of(caller.id());
         }
 
         public Ids.Caller caller() {
             return caller;
+        }
+
+        /** 调用方 ID（红线 6：core 注入，永远不是工具参数）。 */
+        @Override
+        public String callerId() {
+            return caller.id();
         }
 
         /** 家目录（工具工作目录默认挂这里）。 */
@@ -207,6 +221,37 @@ public final class SnowLeopard {
         public BuiltinToolkit tools() {
             return new BuiltinToolkit(this);
         }
+
+        /** 协作面：唤醒请求与策略。 */
+        @Override
+        public snowleopard.core.wake.WakeStore wake() {
+            return wake;
+        }
+
+        /** 协作面：本地群组。 */
+        @Override
+        public snowleopard.core.group.GroupStore groups() {
+            return groups;
+        }
+
+        /** 唤起链（core 注入；模型无法通过工具参数改写）。 */
+        @Override
+        public List<String> wakeChain() {
+            return wakeChain;
+        }
+
+        /**
+         * 宿主专用：本会话是被别的 ID 唤起启动时设置链（如 {@code ["alpha", "beta"]}）。
+         * 链必须以本 ID 结尾——否则深度判定会被绕过。
+         */
+        public CallerScope withWakeChain(List<String> ids) {
+            if (ids == null || ids.isEmpty()
+                    || !ids.get(ids.size() - 1).equals(caller.id())) {
+                throw new IllegalArgumentException("唤起链不能为空且必须以当前 ID 结尾");
+            }
+            this.wakeChain = List.copyOf(ids);
+            return this;
+        }
     }
 
     /**
@@ -228,27 +273,31 @@ public final class SnowLeopard {
         private final Compressor compressor;
         private final SessionGate.Budget budget;
         private final String configSrc;
+        /** 运行态权威（缺省=单机双保险 LockFileRuntime，由 CallerScope 惰性建）。 */
+        private final snowleopard.core.wake.RuntimeView runtime;
 
         private Options(boolean allowAll, Path input, Path bundled,
-                        Compressor compressor, SessionGate.Budget budget, String configSrc) {
+                        Compressor compressor, SessionGate.Budget budget, String configSrc,
+                        snowleopard.core.wake.RuntimeView runtime) {
             this.allowAll = allowAll;
             this.input = input;
             this.bundled = bundled;
             this.compressor = compressor;
             this.budget = budget;
             this.configSrc = configSrc;
+            this.runtime = runtime;
         }
 
         /** 显式全开（教程/示例用；生产请 {@link #fromFiles}）。 */
         public static Options allowAll() {
             return new Options(true, null, null, passThrough(), SessionGate.Budget.unlimited(),
-                    "全权限（Permissions.defaultAll——显式选择）");
+                    "全权限（Permissions.defaultAll——显式选择）", null);
         }
 
         /** 显式权限文件（input 优先于 bundled；热更新不回溯）。 */
         public static Options fromFiles(Path input, Path bundled) {
             return new Options(false, input, bundled, passThrough(), SessionGate.Budget.unlimited(),
-                    "权限文件（input=" + input + "，bundled=" + bundled + "）");
+                    "权限文件（input=" + input + "，bundled=" + bundled + "）", null);
         }
 
         /** 注入压缩器（LLM 压缩由宿主实现 {@link Compressor}；失败抛异常=冷却补做）。 */
@@ -256,7 +305,7 @@ public final class SnowLeopard {
             if (compressor == null) {
                 throw new IllegalArgumentException("compressor 不接受 null（缺省=直通，别传 null）");
             }
-            return new Options(allowAll, input, bundled, compressor, budget, configSrc);
+            return new Options(allowAll, input, bundled, compressor, budget, configSrc, runtime);
         }
 
         /** 设置会话预算（默认无上限）。 */
@@ -264,12 +313,24 @@ public final class SnowLeopard {
             if (budget == null) {
                 throw new IllegalArgumentException("budget 不接受 null（缺省=unlimited）");
             }
-            return new Options(allowAll, input, bundled, compressor, budget, configSrc);
+            return new Options(allowAll, input, bundled, compressor, budget, configSrc, runtime);
+        }
+
+        /** 注入运行态权威（宿主实现；缺省=单机双保险）。 */
+        public Options withRuntime(snowleopard.core.wake.RuntimeView runtime) {
+            if (runtime == null) {
+                throw new IllegalArgumentException("runtime 不接受 null（缺省用 LockFileRuntime，别传 null）");
+            }
+            return new Options(allowAll, input, bundled, compressor, budget, configSrc, runtime);
+        }
+
+        snowleopard.core.wake.RuntimeView runtime() {
+            return runtime;
         }
 
         /** 覆盖启动报告里的配置来源描述。 */
         public Options withConfigSrc(String desc) {
-            return new Options(allowAll, input, bundled, compressor, budget, desc);
+            return new Options(allowAll, input, bundled, compressor, budget, desc, runtime);
         }
 
         private Permissions materializePermissions(ToolRegistry registry) {

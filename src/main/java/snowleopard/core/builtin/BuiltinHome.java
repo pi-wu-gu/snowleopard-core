@@ -21,6 +21,9 @@ import snowleopard.core.todo.TodoStore;
  */
 public interface BuiltinHome {
 
+    /** 调用方 ID（core 注入，模型不可伪造）——协作面的 actor 就是它。 */
+    String callerId();
+
     TodoStore todos();
 
     NoteStore notes();
@@ -34,4 +37,16 @@ public interface BuiltinHome {
     Corrections corrections();
 
     SessionGate session();
+
+    /** 唤醒请求与策略（协作面：共享 {@code shared/wake/} + 自己的 {@code wake-policy.json}）。 */
+    snowleopard.core.wake.WakeStore wake();
+
+    /** 本地群组（协作面：共享 {@code shared/groups/} + 自己的 {@code groups/state.json}）。 */
+    snowleopard.core.group.GroupStore groups();
+
+    /**
+     * 当前唤起链（<b>core 注入，模型不可伪造</b>）：通常 {@code [self]}；
+     * 若本次会话是被别的 ID 唤起的，则为 {@code [from, self]}——深度据此判超限。
+     */
+    java.util.List<String> wakeChain();
 }

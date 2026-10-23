@@ -41,7 +41,7 @@ public final class BuiltinCheck {
 
         // ── ① 注册面 ───────────────────────────────────────────────
         System.out.println("== 1 注册面（注入/查询） ==");
-        check("四组全注册（恰 4）", reg.groups().size() == 4, "实际 " + reg.groups().size());
+        check("六组全注册（恰 6）", reg.groups().size() == 6, "实际 " + reg.groups().size());
         for (String g : BuiltinGroups.GROUP_NAMES) {
             String full = "builtin:core:" + g;
             check("注册含 " + full, reg.groups().stream().anyMatch(x -> x.full().equals(full)),
@@ -53,7 +53,8 @@ public final class BuiltinCheck {
         check("任务/笔记 NORMAL（可关）",
                 avail(reg, "builtin:core:todo") == Availability.NORMAL
                         && avail(reg, "builtin:core:notes") == Availability.NORMAL, "");
-        check("工具总数 18", reg.toolCount() == 18, "实际 " + reg.toolCount());
+        check("工具总数 32（四基础组 18 + 唤醒 4 + 群组 10）", reg.toolCount() == 32,
+                "实际 " + reg.toolCount());
         List<String> briefs = reg.briefs();
         String briefText = String.join("\n", briefs);
         check("briefs 含四组全名", BuiltinGroups.GROUP_NAMES.stream()
@@ -206,7 +207,7 @@ public final class BuiltinCheck {
         System.out.println("== 7 清单与执行面同源 ==");
         int declared = BuiltinGroups.all().stream()
                 .mapToInt(p -> p.describe().tools().size()).sum();
-        check("清单工具数 = 注册数 = 18", declared == 18 && declared == reg.toolCount(),
+        check("清单工具数 = 注册数 = 32", declared == 32 && declared == reg.toolCount(),
                 "清单 " + declared + " / 注册 " + reg.toolCount());
         check("每组工具都有 usage + params（拒载规则自己先过）",
                 reg.groups().stream().flatMap(g -> g.tools().stream())

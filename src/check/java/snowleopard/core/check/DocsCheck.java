@@ -149,27 +149,28 @@ public final class DocsCheck {
         check("行为规格清单存在", specTxt != null, String.valueOf(spec));
         check("规格清单带时间戳记录（UTC+8）", specTxt != null && specTxt.contains("(UTC+8)"), "");
         List<String> noNamed = new ArrayList<>();
-        for (String cls : List.of("BuiltinCheck", "SmokeCheck", "FoundationCheck", "RegistryCheck",
-                "SafetyCheck", "WorkCheck", "MemoryCheck", "ShellCheck", "ReportCheck",
-                "DocsCheck", "ExamplesCheck")) {
+        for (String cls : List.of("BuiltinCheck", "CommunityCheck", "SmokeCheck", "FoundationCheck",
+                "RegistryCheck", "SafetyCheck", "WorkCheck", "MemoryCheck", "ShellCheck",
+                "ReportCheck", "DocsCheck", "ExamplesCheck")) {
             if (specTxt == null || !specTxt.contains(cls)) {
                 noNamed.add(cls);
             }
         }
-        check("规格清单点名全部 11 个 Check 类（0 漏）", noNamed.isEmpty(), noNamed.toString());
+        check("规格清单点名全部 12 个 Check 类（0 漏）", noNamed.isEmpty(), noNamed.toString());
 
         System.out.println("== 10 内置工具组文档纳管（2026-10-23 19:40） ==");
         List<String> noGroup = new ArrayList<>();
         for (String g : List.of("builtin:core:session", "builtin:core:memory",
-                "builtin:core:todo", "builtin:core:notes")) {
+                "builtin:core:todo", "builtin:core:notes",
+                "builtin:core:wake", "builtin:core:group")) {
             if (bt == null || !bt.contains(g)) {
                 noGroup.add(g);
             }
         }
-        check("内置文档点名四组全名（0 漏）", noGroup.isEmpty(), noGroup.toString());
-        check("内置文档写清 18 工具口径（清单即政策）", bt != null && bt.contains("18 工具"), "");
+        check("内置文档点名六组全名（0 漏）", noGroup.isEmpty(), noGroup.toString());
+        check("内置文档写清 32 工具口径（清单即政策）", bt != null && bt.contains("32 工具"), "");
         check("内置文档明确记账\"壳侧未接\"（未做的不许当做过）",
-                bt != null && bt.contains("壳侧尚未接四组"), "");
+                bt != null && bt.contains("壳侧只接了前四组"), "");
         check("内置文档引用分析规范（单一事实源在分析文档）",
                 bt != null && bt.contains("分析 §三"), "");
 

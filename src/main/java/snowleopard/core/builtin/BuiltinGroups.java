@@ -28,12 +28,13 @@ public final class BuiltinGroups {
     /** 内置组的来源 ID（限定名第二段）。 */
     public static final String SOURCE_ID = "core";
 
-    /** 四组短名（顺序即装载顺序：会话 → 记忆 → 任务 → 笔记）。 */
-    public static final List<String> GROUP_NAMES = List.of("session", "memory", "todo", "notes");
+    /** 六组短名（顺序即装载顺序：会话 → 记忆 → 任务 → 笔记 → 唤醒 → 群组）。 */
+    public static final List<String> GROUP_NAMES = List.of("session", "memory", "todo", "notes",
+            "wake", "group");
 
-    /** 四组 provider（每次调用返回新实例——provider 无状态，注册表持有描述即可）。 */
+    /** 六组 provider（每次调用返回新实例——provider 无状态，注册表持有描述即可）。 */
     public static List<ToolGroupProvider> all() {
-        return List.of(session(), memory(), todo(), notes());
+        return List.of(session(), memory(), todo(), notes(), wake(), group());
     }
 
     // ------------------------------------------------------------- 会话
@@ -154,6 +155,102 @@ public final class BuiltinGroups {
                                 ps(List.of("path"),
                                         "path", "相对 notes/ 的路径",
                                         "confirm_token", "首段返回的令牌；不带=只预览不删除"))));
+    }
+
+    // ------------------------------------------------------------- 唤醒
+
+    /**
+     * 主动唤起（2026-10-23 21:55 (UTC+8)，裁决：深度 1 / 在运行则失败 / 黑名单属被唤起方）。
+     */
+    public static ToolGroupProvider wake() {
+        return provider("wake", "builtin/wake", Availability.NORMAL,
+                "主动唤起：请另一个 ID 开工（在运行则失败，不排队）",
+                "core 只登记请求与裁决，真唤起由宿主执行（它 poll 待执行请求后启动会话并回写）。"
+                        + "六道闸：ID 合法 → 非自唤起 → 非成环 → 深度 ≤ 1 → 目标不在运行 → 未被目标拉黑。"
+                        + "唤起不代付预算——被唤起方用自己的预算，否则唤起就是绕过预算的后门。",
+                List.of(
+                        new Tool("wake", "唤起指定 ID（已在运行则失败）",
+                                "wake(model_id, prompt?, reason?, client_req_id?) → {reqId, state:pending}",
+                                ps(List.of("model_id"),
+                                        "model_id", "目标模型 ID（已登记才有家目录）",
+                                        "prompt", "给对方的任务提示（空=日常巡检）",
+                                        "reason", "为什么唤起（进审计，对方可见）",
+                                        "client_req_id", "幂等键：同键重发 → WARN 不产生第二条")),
+                        new Tool("wake_status", "查看一次唤起的执行结果",
+                                "wake_status(req_id) → {reqId, state, outcome}",
+                                ps(List.of("req_id"), "req_id", "受理时返回的请求编号")),
+                        new Tool("wake_deny", "拉黑/取消拉黑（我不接受谁唤起我）",
+                                "wake_deny(model_id, on=true) → {deny[]}",
+                                ps(List.of("model_id"),
+                                        "model_id", "要拉黑的 ID",
+                                        "on", "true=加入禁止列表 · false=移除")),
+                        new Tool("wake_policy", "我的策略：黑名单 + 最近被唤起记录",
+                                "wake_policy() → {deny[], recent[], running, quotaPerHour}",
+                                ps(List.of()))));
+    }
+
+    // ------------------------------------------------------------- 群组
+
+    /**
+     * 本地群组（2026-10-23 21:55 (UTC+8)，三级角色：创建者 > 管理 > 成员；不跨网络）。
+     */
+    public static ToolGroupProvider group() {
+        return provider("group", "builtin/group", Availability.NORMAL,
+                "本地群组：建/散/加人/任命管理/发消息/读未读/搜索（不跨网络）",
+                "三级角色：创建者（解散、移除、任命管理）＞ 管理（添加 ID）＞ 成员（读发退）。"
+                        + "消息 append-only（多 ID 同时写，seq 游标读取）。"
+                        + "引用只回状态不回内容：ok / stale（内容已变更）/ missing（源已丢失）——"
+                        + "内容仍在发送方家里（核心数据不复用信息）。",
+                List.of(
+                        new Tool("group_create", "建群（自动分配 gid，建群者即创建者）",
+                                "group_create(name) → {gid, name, creator}",
+                                ps(List.of("name"), "name", "群组名（可重名，gid 才是标识）")),
+                        new Tool("group_disband", "解散群组（仅创建者；移入回收区）",
+                                "group_disband(gid) → {gid, disbanded, movedTo}",
+                                ps(List.of("gid"), "gid", "群组编号")),
+                        new Tool("group_add", "添加 ID（管理 + 创建者；普通成员不可）",
+                                "group_add(gid, model_id) → {gid, member, role}",
+                                ps(List.of("gid", "model_id"),
+                                        "gid", "群组编号",
+                                        "model_id", "要加入的 ID（需已登记）")),
+                        new Tool("group_remove", "移除 ID（仅创建者）",
+                                "group_remove(gid, model_id) → {gid, removed}",
+                                ps(List.of("gid", "model_id"),
+                                        "gid", "群组编号",
+                                        "model_id", "要移除的 ID（管理角色一并清除）")),
+                        new Tool("group_grant", "任命/撤销管理（仅创建者）",
+                                "group_grant(gid, model_id, role=admin|member) → {gid, member, role}",
+                                ps(List.of("gid", "model_id"),
+                                        "gid", "群组编号",
+                                        "model_id", "目标成员（须已在群里）",
+                                        "role", "admin（管理）| member（成员）")),
+                        new Tool("group_leave", "自己退出（创建者不可退，先解散）",
+                                "group_leave(gid) → {gid, left}",
+                                ps(List.of("gid"), "gid", "群组编号")),
+                        new Tool("group_send", "发消息（成员及以上；可带引用）",
+                                "group_send(gid, text, ref?, client_msg_id?) → {seq, ref:{state}}",
+                                ps(List.of("gid", "text"),
+                                        "gid", "群组编号",
+                                        "text", "正文（≤4096 字符）",
+                                        "ref", "引用：note:<相对路径> 或 file:<相对路径>（只能指自己家内）",
+                                        "client_msg_id", "幂等键：同键重发 → WARN")),
+                        new Tool("group_read", "读消息（成员及以上；默认读未读）",
+                                "group_read(gid, limit=20, since_seq?) → {messages[], lastReadSeq}",
+                                ps(List.of("gid"),
+                                        "gid", "群组编号",
+                                        "limit", "条数上限（≤100）",
+                                        "since_seq", "起始 seq（省略=从上次已读之后）")),
+                        new Tool("group_list", "我的群列表（角色 + 未读数）",
+                                "group_list() → [{gid, name, myRole, unread, messages}]",
+                                ps(List.of())),
+                        new Tool("group_search", "搜索消息（子串 + 时间窗）",
+                                "group_search(gid, keyword, since_ts?, until_ts?, limit=20) → {hits[]}",
+                                ps(List.of("gid", "keyword"),
+                                        "gid", "群组编号",
+                                        "keyword", "关键词（大小写不敏感子串）",
+                                        "since_ts", "起始时间（epoch 毫秒）",
+                                        "until_ts", "结束时间（epoch 毫秒）",
+                                        "limit", "条数上限（≤100）"))));
     }
 
     // ------------------------------------------------------------- 内部

@@ -41,6 +41,8 @@ public final class BuiltinToolkit {
             case "memory" -> memory(tool, p);
             case "todo" -> todo(p, tool);
             case "notes" -> notes(tool, p);
+            case "wake" -> wake(tool, p);
+            case "group" -> group(tool, p);
             default -> throw new IllegalArgumentException("未知内置组: " + group
                     + "（可选 " + String.join(" | ", BuiltinGroups.GROUP_NAMES) + "）");
         };
@@ -239,6 +241,119 @@ public final class BuiltinToolkit {
         }
     }
 
+    // ------------------------------------------------------------- 唤醒
+
+    /**
+     * 唤起（裁决：深度 1 / 在运行则失败 / 黑名单属被唤起方）。
+     *
+     * <p>{@code from} 与唤醒链都从 {@link BuiltinHome} 取——<b>工具参数里没有 from</b>，
+     * 模型改不了"我是谁"和"我离根有多远"。
+     */
+    private Result wake(String tool, Map<String, Object> p) {
+        var w = home.wake();
+        return switch (tool) {
+            case "wake" -> {
+                String to = str(p, "model_id");
+                if (to == null) {
+                    yield Result.error("wake 需要 model_id");
+                }
+                yield w.request(new snowleopard.core.wake.WakeStore.Chain(home.wakeChain()),
+                        home.callerId(), to, str(p, "prompt"), str(p, "reason"),
+                        str(p, "client_req_id"));
+            }
+            case "wake_status" -> {
+                String reqId = str(p, "req_id");
+                yield reqId == null ? Result.error("wake_status 需要 req_id")
+                        : w.status(home.callerId(), reqId);
+            }
+            case "wake_deny" -> {
+                String id = str(p, "model_id");
+                if (id == null) {
+                    yield Result.error("wake_deny 需要 model_id");
+                }
+                Object on = p.get("on");
+                boolean flag = on == null || Boolean.parseBoolean(String.valueOf(on));
+                yield w.deny(home.callerId(), id, flag);
+            }
+            case "wake_policy" -> w.policy(home.callerId());
+            default -> unknown("wake", tool);
+        };
+    }
+
+    // ------------------------------------------------------------- 群组
+
+    private Result group(String tool, Map<String, Object> p) {
+        var g = home.groups();
+        String actor = home.callerId();
+        switch (tool) {
+            case "group_create": {
+                String name = str(p, "name");
+                return name == null ? Result.error("group_create 需要 name") : g.create(actor, name);
+            }
+            case "group_disband": {
+                String gid = str(p, "gid");
+                return gid == null ? Result.error("group_disband 需要 gid") : g.disband(actor, gid);
+            }
+            case "group_add": {
+                String gid = str(p, "gid");
+                String who = str(p, "model_id");
+                if (gid == null || who == null) {
+                    return Result.error("group_add 需要 gid 与 model_id");
+                }
+                return g.add(actor, gid, who);
+            }
+            case "group_remove": {
+                String gid = str(p, "gid");
+                String who = str(p, "model_id");
+                if (gid == null || who == null) {
+                    return Result.error("group_remove 需要 gid 与 model_id");
+                }
+                return g.remove(actor, gid, who);
+            }
+            case "group_grant": {
+                String gid = str(p, "gid");
+                String who = str(p, "model_id");
+                String role = str(p, "role");
+                if (gid == null || who == null || role == null) {
+                    return Result.error("group_grant 需要 gid、model_id 与 role（admin|member）");
+                }
+                return g.grant(actor, gid, who, role);
+            }
+            case "group_leave": {
+                String gid = str(p, "gid");
+                return gid == null ? Result.error("group_leave 需要 gid") : g.leave(actor, gid);
+            }
+            case "group_send": {
+                String gid = str(p, "gid");
+                String text = str(p, "text");
+                if (gid == null || text == null) {
+                    return Result.error("group_send 需要 gid 与 text");
+                }
+                return g.send(actor, gid, text, str(p, "ref"), str(p, "client_msg_id"));
+            }
+            case "group_read": {
+                String gid = str(p, "gid");
+                if (gid == null) {
+                    return Result.error("group_read 需要 gid");
+                }
+                return g.read(actor, gid, intOf(p, "limit", 20), longOf(p, "since_seq", -1));
+            }
+            case "group_list":
+                return g.list(actor);
+            case "group_search": {
+                String gid = str(p, "gid");
+                String kw = str(p, "keyword");
+                if (gid == null || kw == null) {
+                    return Result.error("group_search 需要 gid 与 keyword");
+                }
+                return g.search(actor, gid, kw, longOf(p, "since_ts", 0),
+                        longOf(p, "until_ts", 0), intOf(p, "limit", 20));
+            }
+            default:
+                return unknown("group", tool);
+        }
+    }
+
     // ------------------------------------------------------------- 内部
 
     private static Result unknown(String group, String tool) {
@@ -254,5 +369,35 @@ public final class BuiltinToolkit {
         }
         String s = String.valueOf(v).trim();
         return s.isEmpty() ? null : s;
+    }
+
+    private static int intOf(Map<String, Object> p, String key, int dflt) {
+        Object v = p.get(key);
+        if (v instanceof Number n) {
+            return n.intValue();
+        }
+        if (v == null) {
+            return dflt;
+        }
+        try {
+            return Integer.parseInt(String.valueOf(v).trim());
+        } catch (NumberFormatException e) {
+            return dflt;
+        }
+    }
+
+    private static long longOf(Map<String, Object> p, String key, long dflt) {
+        Object v = p.get(key);
+        if (v instanceof Number n) {
+            return n.longValue();
+        }
+        if (v == null) {
+            return dflt;
+        }
+        try {
+            return Long.parseLong(String.valueOf(v).trim());
+        } catch (NumberFormatException e) {
+            return dflt;
+        }
     }
 }

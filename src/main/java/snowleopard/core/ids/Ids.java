@@ -50,6 +50,16 @@ public final class Ids {
         return root;
     }
 
+    /**
+     * 共享面根（{@code <storage>/shared}）——协作类能力（群组 / 唤醒请求与策略）唯一的跨 ID 内容区。
+     *
+     * <p>红线 3 只约束**核心组件的数据**（记忆/笔记/待办/通用文件访问不跨 ID 复用信息）；
+     * 共享面是裁决允许的例外，三条约束见概念地图 §三·补（零路径参数 / 鉴权在 core / caller_id 不可伪造）。
+     */
+    public Path shared() {
+        return root.getParent().resolve("shared");
+    }
+
     /** 该 ID 的家目录（不创建文件系统对象——创建交给 mkdirs）。 */
     public Path home(Caller caller) {
         return root.resolve(caller.id());
