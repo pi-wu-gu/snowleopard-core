@@ -48,14 +48,18 @@ public final class SnowLeopard {
     private final ProviderLoader loader;
     private final Permissions permissions;
     private final Options options;
+    /** root 级：唤醒请求（宿主 poll/complete 用；策略与已读位仍按 actor 落各自的家）。 */
+    private final snowleopard.core.wake.WakeStore wake;
 
     private SnowLeopard(Ids ids, ToolRegistry registry, ProviderLoader loader,
-                        Permissions permissions, Options options) {
+                        Permissions permissions, Options options,
+                        snowleopard.core.wake.WakeStore wake) {
         this.ids = ids;
         this.registry = registry;
         this.loader = loader;
         this.permissions = permissions;
         this.options = options;
+        this.wake = wake;
     }
 
     /**
@@ -81,7 +85,10 @@ public final class SnowLeopard {
             loader.load(p, Names.SourceType.BUILTIN);
         }
         Permissions permissions = options.materializePermissions(registry);
-        return new SnowLeopard(ids, registry, loader, permissions, options);
+        // 一个 WakeStore 全 caller 共用：请求落 shared/wake，策略与已提示位落 ids/<actor>/（红线 3 不变）
+        snowleopard.core.wake.WakeStore wake =
+                new snowleopard.core.wake.WakeStore(ids, options.runtime());
+        return new SnowLeopard(ids, registry, loader, permissions, options, wake);
     }
 
     // ── root 级（共享）──
@@ -97,6 +104,11 @@ public final class SnowLeopard {
     /** 装载/卸载的控制点在装载器上（S5：门面只转发，不吞生命周期）。 */
     public ProviderLoader loader() {
         return loader;
+    }
+
+    /** 唤醒请求的宿主侧视图（{@code pending()} / {@code complete()} 不需要 actor）。 */
+    public snowleopard.core.wake.WakeStore wake() {
+        return wake;
     }
 
     /** 热更新走 {@link Permissions#reload}（不回溯）——同样保留原控制点。 */
@@ -161,7 +173,7 @@ public final class SnowLeopard {
             this.session = new SessionGate(core.options.budget());
             this.confirm = new ConfirmGate();
             // 协作面：请求/消息落 shared/，策略与已读位落各自的家（红线 3 对核心组件的隔离不受影响）
-            this.wake = new snowleopard.core.wake.WakeStore(core.ids, core.options.runtime());
+            this.wake = core.wake;   // 与 root 级共用（方法都带 actor 参数，状态仍按 ID 落盘）
             this.groups = new snowleopard.core.group.GroupStore(core.ids);
             this.wakeChain = List.of(caller.id());
         }

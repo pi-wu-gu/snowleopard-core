@@ -251,6 +251,64 @@ public final class WakeStore {
         }
     }
 
+    // ------------------------------------------------------------- 提示（TURN_END 汇总用）
+
+    /** 尚未提示过的"我被唤起"请求（"仅触发一次"的落点）。 */
+    public List<Request> newlyWoken(String actor) {
+        List<String> seen = seenReqs(actor);
+        List<Request> out = new ArrayList<>();
+        synchronized (lock()) {
+            for (Path p : reqFiles()) {
+                Request r = read(p);
+                if (r != null && r.to().equals(actor) && !seen.contains(r.reqId())) {
+                    out.add(r);
+                }
+            }
+        }
+        return out;
+    }
+
+    /** 标记已提示（注入汇总行后调用；不影响请求状态本身）。 */
+    public void markWokenSeen(String actor, List<String> reqIds) {
+        if (reqIds == null || reqIds.isEmpty()) {
+            return;
+        }
+        synchronized (lock()) {
+            List<String> seen = new ArrayList<>(seenReqs(actor));
+            for (String id : reqIds) {
+                if (!seen.contains(id)) {
+                    seen.add(id);
+                }
+            }
+            try {
+                Path p = ids.home(actor).resolve("wake-seen.json");
+                Files.createDirectories(p.getParent());
+                Files.writeString(p, Json.dump(Map.of("seen", seen)), StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                throw new IllegalStateException("唤醒已读标记落盘失败: " + e.getMessage(), e);
+            }
+        }
+    }
+
+    private List<String> seenReqs(String actor) {
+        Path p = ids.home(actor).resolve("wake-seen.json");
+        List<String> out = new ArrayList<>();
+        if (!Files.isRegularFile(p)) {
+            return out;
+        }
+        try {
+            Map<String, Object> m = Json.parseObject(Files.readString(p, StandardCharsets.UTF_8));
+            if (m.get("seen") instanceof List<?> l) {
+                for (Object o : l) {
+                    out.add(String.valueOf(o));
+                }
+            }
+        } catch (IOException | IllegalArgumentException ignored) {
+            // 坏文件当没提示过（宁多提示一次，不少提示）
+        }
+        return out;
+    }
+
     // ------------------------------------------------------------- 内部
 
     private Object lock() {

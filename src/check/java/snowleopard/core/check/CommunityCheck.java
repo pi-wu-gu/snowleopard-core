@@ -42,7 +42,7 @@ public final class CommunityCheck {
         WakeStore wake = new WakeStore(ids, rt);
 
         wake(ids, rt, wake);
-        groups(ids);
+        groups(ids, wake);
 
         System.out.println((fail == 0 ? "PASS" : "FAIL") + " community: 通过 " + pass + " · 失败 " + fail);
         if (fail > 0) {
@@ -125,7 +125,7 @@ public final class CommunityCheck {
 
     // ------------------------------------------------------------- 群组
 
-    private static void groups(Ids ids) {
+    private static void groups(Ids ids, WakeStore wake) {
         System.out.println("== 2 群组（三级角色 / append-only / 引用三态） ==");
         GroupStore g = new GroupStore(ids);
 
@@ -270,9 +270,46 @@ public final class CommunityCheck {
         check("两实例交替写 10 条、seq 不重（0..10 连续）",
                 countSeqs(data(all)) == 10,
                 "实际 " + countSeqs(data(all)));
+
+        // ---- M4：轮末汇总一行（裁决 6） ----
+        System.out.println("== 3 轮末汇总（一行 / 沉默 / 提示一次） ==");
+        String line1 = snowleopard.core.builtin.TurnSummary.line("beta", g, wake, null,
+                java.time.LocalDate.now());
+        check("汇总行含群未读", line1 != null && line1.contains("群组未读 g"),
+                String.valueOf(line1));
+        check("汇总行含新唤起计数", line1 != null && line1.contains("新唤起"),
+                String.valueOf(line1));
+        check("汇总行含新消息（仅一次维度）", line1 != null && line1.contains("新消息"),
+                String.valueOf(line1));
+        long unreadBefore = unreadOf(data(g.list("beta")), gid2);
+        snowleopard.core.builtin.TurnSummary.consume("beta", g, wake);
+        String line2 = snowleopard.core.builtin.TurnSummary.line("beta", g, wake, null,
+                java.time.LocalDate.now());
+        check("提示一次：新消息段与唤醒段消失", line2 == null
+                || (!line2.contains("新消息") && !line2.contains("新唤起")),
+                String.valueOf(line2));
+        check("存在未读每轮仍报（群-8 与群-9 是两个维度）",
+                line2 != null && line2.contains("群组未读"), String.valueOf(line2));
+        check("且未读计数未变（提示 ≠ 已读）", unreadOf(data(g.list("beta")), gid2) == unreadBefore
+                && unreadBefore > 0, "before=" + unreadBefore);
+        check("无内容 → 沉默（返回 null，不占上下文）",
+                snowleopard.core.builtin.TurnSummary.line("delta", g, wake, null,
+                        java.time.LocalDate.now()) == null, "非 null");
     }
 
     // ------------------------------------------------------------- 小工具
+
+    private static long unreadOf(Object listData, String gid) {
+        if (listData instanceof List<?> l) {
+            for (Object o : l) {
+                if (o instanceof Map<?, ?> m && gid.equals(String.valueOf(m.get("gid")))) {
+                    Object u = m.get("unread");
+                    return u instanceof Number n ? n.longValue() : -1;
+                }
+            }
+        }
+        return -1;
+    }
 
     private static long lines(Path p) {
         try {
