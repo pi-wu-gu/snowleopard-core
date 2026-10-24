@@ -122,7 +122,12 @@ public final class SnowLeopard {
         extra.add("装配门面默认值: 压缩器=" + options.compressorLabel()
                 + " · 预算=" + (options.budget().turnsLimited() || options.budget().tokensLimited()
                 ? "有限" : "无上限（SessionGate.Budget.unlimited）"));
-        return StartupReport.render(registry, registry.names(), loader.issues(),
+        // 组清单压成快照再交给渲染层——**只有门面同时认识两边**，
+        // 于是 report 不必反向认识 registry（包级成环会让两处谁都改不动）
+        List<StartupReport.GroupLine> groupLines = registry.groups().stream()
+                .map(g -> new StartupReport.GroupLine(g.id().type(), g.id().sourceId()))
+                .toList();
+        return StartupReport.render(groupLines, registry.names(), loader.issues(),
                 options.configSrc(), extra);
     }
 

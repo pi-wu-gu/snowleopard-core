@@ -10,7 +10,6 @@ import java.util.Map;
 
 import snowleopard.core.Version;
 import snowleopard.core.names.Names;
-import snowleopard.core.registry.ToolRegistry;
 
 /**
  * 启动报告（M7，2026-10-22 23:58 (UTC+8)，分析 §2.1 规则 5 / 分析 §二.二.3）。
@@ -30,15 +29,26 @@ public final class StartupReport {
     }
 
     /**
+     * 已注册工具组的一行快照（只有渲染要用的两样，不携带活对象）。
+     *
+     * <p>为什么是快照而不是 {@code ToolRegistry} 本身（2026-10-24 06:15 (UTC+8)）：
+     * 渲染层认识注册表 = {@code report → registry}，而 registry 记问题要用 {@code report.Issue}，
+     * 两包互指成环。环不报错、不失败，只是让"改一处要问另一处"，最后谁都改不动——
+     * 所以按"**渲染不要认识活对象**"切断：调用方（门面）负责把组压成快照。
+     */
+    public record GroupLine(Names.SourceType type, String sourceId) {
+    }
+
+    /**
      * 渲染报告。
      *
-     * @param registry    注册表（来源分布、组数）
+     * @param groups      已注册组的快照（来源分布、组数）
      * @param names       名字表（重名消歧）
      * @param issues      全部装载/卸载/配置问题（WARN 与 ERROR 都汇总）
      * @param configSrc   生效配置来源描述（如 {@code id 自带 tools-default.json ← tool-configs/x.json}），可空
      * @param extraNotes  宿主附加行（如模组清单来源说明），可空
      */
-    public static List<String> render(ToolRegistry registry, Names names,
+    public static List<String> render(List<GroupLine> groups, Names names,
                                       List<Issue> issues, String configSrc,
                                       List<String> extraNotes) {
         List<String> lines = new ArrayList<>();
@@ -47,10 +57,10 @@ public final class StartupReport {
 
         // 来源分布（分析 §二.二.3：标注来源 modid）
         Map<Names.SourceType, List<String>> byType = new LinkedHashMap<>();
-        for (ToolRegistry.Group g : registry.groups()) {
-            byType.computeIfAbsent(g.id().type(), k -> new ArrayList<>()).add(g.id().sourceId());
+        for (GroupLine g : groups) {
+            byType.computeIfAbsent(g.type(), k -> new ArrayList<>()).add(g.sourceId());
         }
-        StringBuilder dist = new StringBuilder("工具组 ").append(registry.groups().size()).append(" 个（");
+        StringBuilder dist = new StringBuilder("工具组 ").append(groups.size()).append(" 个（");
         boolean first = true;
         for (Names.SourceType t : Names.SourceType.values()) {
             List<String> ids = byType.getOrDefault(t, List.of());

@@ -226,10 +226,12 @@ public final class Rollup {
     private boolean inCooldown(String target) {
         Map<String, Object> f = loadFailures();
         Object o = f.get(target);
-        if (!(o instanceof Map)) {
+        // 用 Map<?, ?> 接住而不是裸转 Map<String,Object>：这是全仓唯一的 unchecked 警告
+        // （2026-10-24 06:30 (UTC+8) 清掉——留着它，-Xlint 的输出就永远有噪音，真警告会被淹没）
+        if (!(o instanceof Map<?, ?> m)) {
             return false;
         }
-        Object ts = ((Map<String, Object>) o).get("failedTs");
+        Object ts = m.get("failedTs");
         return ts instanceof Number n
                 && System.currentTimeMillis() - n.longValue() < COOLDOWN_MS;
     }

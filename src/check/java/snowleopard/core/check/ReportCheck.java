@@ -62,13 +62,20 @@ public final class ReportCheck {
         }
     }
 
+    /** 组 → 渲染快照（渲染层只收快照，不认识活注册表——包级成环的拆法）。 */
+    private static List<StartupReport.GroupLine> groupLines(ToolRegistry reg) {
+        return reg.groups().stream()
+                .map(g -> new StartupReport.GroupLine(g.id().type(), g.id().sourceId()))
+                .toList();
+    }
+
     private static void scenarioReport(ToolRegistry reg, ProviderLoader loader) {
         System.out.println("== A 启动报告：来源分布 + 重名消歧表 ==");
         loader.load(new ModA(), Names.SourceType.MOD);
         loader.load(new ModB(), Names.SourceType.MOD);   // 同短名 combat → 歧义
 
         List<Issue> issues = new ArrayList<>(loader.issues());
-        List<String> rep = StartupReport.render(reg, reg.names(), issues,
+        List<String> rep = StartupReport.render(groupLines(reg), reg.names(), issues,
                 "id 自带 tools-default.json", null);
         String all = String.join("\n", rep);
 
@@ -85,7 +92,7 @@ public final class ReportCheck {
         System.out.println("== B 注销：WARN 汇总 + 报「不存在」而非崩溃 ==");
         loader.unload(Names.SourceType.MOD, "beta-mod");
         List<Issue> issues = new ArrayList<>(loader.issues());
-        List<String> rep = StartupReport.render(reg, reg.names(), issues, null, null);
+        List<String> rep = StartupReport.render(groupLines(reg), reg.names(), issues, null, null);
         String all = String.join("\n", rep);
 
         check("WARN 汇总含卸载警告", all.contains("[WARN]") && all.contains("注销"), all);
@@ -103,7 +110,8 @@ public final class ReportCheck {
                 || resolved instanceof Names.Resolution.NotFound, String.valueOf(resolved));
 
         // 卸载后消歧消失（只剩一份 combat）
-        List<String> rep2 = StartupReport.render(reg, reg.names(), new ArrayList<>(), null, null);
+        List<String> rep2 = StartupReport.render(groupLines(reg), reg.names(),
+                new ArrayList<>(), null, null);
         check("消歧表更新（歧义随注销解除）",
                 String.join("\n", rep2).contains("无歧义"), String.join("\n", rep2));
     }

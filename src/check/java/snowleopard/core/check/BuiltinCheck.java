@@ -13,7 +13,11 @@ import snowleopard.core.registry.ToolRegistry.Availability;
 import snowleopard.core.result.Result;
 
 /**
- * 内置四组验收（2026-10-23 19:30 (UTC+8)）：注册面 + 执行面 + 隔离 + 权限默认。
+ * 内置六组验收（2026-10-23 19:30 (UTC+8) 起，2026-10-24 05:50 改口径）：注册面 + 执行面 + 隔离 + 权限默认。
+ *
+ * <p>0.4.0 是四组 18 工具（会话/记忆/任务/笔记）；0.5.0 起加协作面两组（唤醒 4 / 群组 10）= 六组 32 工具。
+ * 断言名里的"四组"是 0.4.0 的残留，本轮改成六组——**断言名是规格的可读投影，名字错了
+ * 人照着名字改文档就会接着错**（2026-10-24 审查抓到）。
  *
  * <p>判据（都是"接进注入面"的确切形态，不做宽泛扫）：
  * <ol>
@@ -57,7 +61,7 @@ public final class BuiltinCheck {
                 "实际 " + reg.toolCount());
         List<String> briefs = reg.briefs();
         String briefText = String.join("\n", briefs);
-        check("briefs 含四组全名", BuiltinGroups.GROUP_NAMES.stream()
+        check("briefs 含六组全名", BuiltinGroups.GROUP_NAMES.stream()
                 .allMatch(g -> briefText.contains("builtin:core:" + g)), briefText);
         check("briefs 不含详解（省 token 的分界）",
                 !briefText.contains("ISO 周跨月") && !briefText.contains("不是抹掉"),
@@ -188,7 +192,7 @@ public final class BuiltinCheck {
                 """);
         SnowLeopard byFile = SnowLeopard.bootstrap(tmp.resolve("filemode"),
                 SnowLeopard.Options.fromFiles(perm, null));
-        check("文件只列外部组 → 内置四组仍默认开",
+        check("文件只列外部组 → 内置六组仍默认开",
                 BuiltinGroups.GROUP_NAMES.stream().allMatch(g ->
                         byFile.permissions().table().allows("builtin:core:" + g, "*")), "");
         Path perm2 = tmp.resolve("perm2.json");

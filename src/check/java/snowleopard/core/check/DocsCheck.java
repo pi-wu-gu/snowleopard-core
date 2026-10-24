@@ -5,9 +5,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import snowleopard.core.builtin.BuiltinGroups;
 
 /**
  * M7 验收（2026-10-22 23:58 (UTC+8)）：文档检查（星期五 B8 的同思路，范围按本仓裁剪）。
@@ -151,12 +155,38 @@ public final class DocsCheck {
         List<String> noNamed = new ArrayList<>();
         for (String cls : List.of("BuiltinCheck", "CommunityCheck", "SmokeCheck", "FoundationCheck",
                 "RegistryCheck", "SafetyCheck", "WorkCheck", "MemoryCheck", "ShellCheck",
-                "ReportCheck", "DocsCheck", "ExamplesCheck")) {
+                "ReportCheck", "DocsCheck", "ExamplesCheck", "ArchCheck")) {
             if (specTxt == null || !specTxt.contains(cls)) {
                 noNamed.add(cls);
             }
         }
-        check("规格清单点名全部 12 个 Check 类（0 漏）", noNamed.isEmpty(), noNamed.toString());
+        check("规格清单点名全部 13 个 Check 类（0 漏）", noNamed.isEmpty(), noNamed.toString());
+
+        System.out.println("== 10 数字一致性（2026-10-24 06:20 (UTC+8)） ==");
+        // 文档里的**数字**此前完全没人管：INDEX 写 298、本节标题写 19、内置工具数写 18，
+        // 而代码早已是 358 / 20 / 32——存在性/时间戳/类名都查过了，唯独数字一路漂。
+        // 判据只做"可静态判定的一致性"，不去猜运行期条数（那由各 Check 自己打印）。
+        int specTotal = firstInt(specTxt, "运行总数 (\\d+)/(\\d+)");
+        Map<String, Integer> perCheck = pairs(specTxt, "([a-z]+) (\\d+)");
+        int perSum = perCheck.values().stream().mapToInt(Integer::intValue).sum();
+        int sectionSum = 0;
+        Matcher sm = Pattern.compile("## (\\w+?)Check（(\\d+)）").matcher(specTxt == null ? "" : specTxt);
+        while (sm.find()) {
+            sectionSum += Integer.parseInt(sm.group(2));
+        }
+        check("规格清单：总数 == 各检查器条数之和", specTotal > 0 && specTotal == perSum,
+                specTotal + " vs " + perSum);
+        check("规格清单：总数 == 各节标题条数之和", specTotal > 0 && specTotal == sectionSum,
+                specTotal + " vs " + sectionSum);
+        check("规格清单与 INDEX 的条数一致（跨文档同一个数字）",
+                specTotal > 0 && specTotal == firstInt(idx, "(\\d+) 条断言"),
+                specTotal + " vs " + firstInt(idx, "(\\d+) 条断言"));
+        // 工具数是**能对着运行时判**的那一条：文档写的 32 必须等于注册表里真的 32
+        int declaredTools = BuiltinGroups.all().stream()
+                .mapToInt(p -> p.describe().tools().size()).sum();
+        check("内置工具数：文档口径 == 注册实际 == 32",
+                declaredTools == 32 && bt != null && bt.contains("32 工具"),
+                "注册 " + declaredTools);
 
         System.out.println("== 10 内置工具组文档纳管（2026-10-23 19:40） ==");
         List<String> noGroup = new ArrayList<>();
@@ -178,6 +208,35 @@ public final class DocsCheck {
         if (fail > 0) {
             System.exit(1);
         }
+    }
+
+    /** 取文档里第一个匹配的第 1 组数字（没有 → -1；-1 参与比较会直接判失败，不静默当 0）。 */
+    private static int firstInt(String doc, String regex) {
+        if (doc == null) {
+            return -1;
+        }
+        Matcher m = Pattern.compile(regex).matcher(doc);
+        return m.find() ? Integer.parseInt(m.group(1)) : -1;
+    }
+
+    /**
+     * 取文档**头部**（第一个 `## ` 之前）里的 "名字 数字" 对。
+     *
+     * <p>只扫头部：正文里的"tick 12""10 秒"这类数量混进来会让条数变成随机数
+     * （宽规则害人——星期五 B8 那次 87 误判就是这么来的）。
+     */
+    private static Map<String, Integer> pairs(String doc, String regex) {
+        Map<String, Integer> out = new LinkedHashMap<>();
+        if (doc == null) {
+            return out;
+        }
+        int end = doc.indexOf("\n## ");
+        String head = end < 0 ? doc : doc.substring(0, end);
+        Matcher m = Pattern.compile(regex).matcher(head);
+        while (m.find()) {
+            out.put(m.group(1), Integer.parseInt(m.group(2)));
+        }
+        return out;
     }
 
     private static String read(Path p) {

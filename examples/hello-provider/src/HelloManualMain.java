@@ -33,8 +33,12 @@ public final class HelloManualMain {
         String full = loader.load(new HelloProvider(), Names.SourceType.LOCAL);
         System.out.println("装载: " + full);
 
+        // 渲染层只收快照（组 → 类型 + 来源 ID）：门面之外没人同时认识注册表与报告
+        List<StartupReport.GroupLine> lines = registry.groups().stream()
+                .map(g -> new StartupReport.GroupLine(g.id().type(), g.id().sourceId()))
+                .toList();
         List<String> report = StartupReport.render(
-                registry, registry.names(), loader.issues(), null, null);
+                lines, registry.names(), loader.issues(), null, null);
         System.out.println("启动报告: " + report.get(0));
         System.out.println("help:\n" + registry.help("echo", Map.of()));
 
