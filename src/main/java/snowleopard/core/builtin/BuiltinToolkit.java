@@ -81,11 +81,46 @@ public final class BuiltinToolkit {
     private Result memory(String tool, Map<String, Object> p) {
         return switch (tool) {
             case "memory_read" -> memoryRead(p);
+            case "memory_list" -> memoryList(p);
             case "memory_default" -> Result.ok(home.memory().loadDefault(LocalDate.now()));
             case "memory_correct" -> memoryCorrect(p);
             case "memory_repair" -> home.rollup().repair(LocalDate.now());
             default -> unknown("memory", tool);
         };
+    }
+
+    /** 列出可用记忆期号（天/轮），供模型发现可读内容。 */
+    private Result memoryList(Map<String, Object> p) {
+        String level = str(p, "level");
+        if (level == null || "day".equalsIgnoreCase(level)) {
+            var days = home.memory().keys(Periods.Level.DAY);
+            // 也列轮次（按天分组）
+            var rounds = home.rawLog().listRounds();
+            var byDay = new java.util.LinkedHashMap<String, java.util.List<String>>();
+            for (var r : rounds) {
+                String d = snowleopard.core.memory.RawLog.dayOf(r.endedTs()).toString();
+                byDay.computeIfAbsent(d, k -> new java.util.ArrayList<>()).add(r.key());
+            }
+            var out = new java.util.LinkedHashMap<String, Object>();
+            out.put("days", days);
+            out.put("rounds", byDay);
+            return Result.ok(out);
+        }
+        if ("round".equalsIgnoreCase(level)) {
+            var rounds = home.rawLog().listRounds();
+            var keys = new java.util.ArrayList<String>();
+            for (var r : rounds) {
+                keys.add(r.key() + " (" + r.entries() + " entries)");
+            }
+            return Result.ok(java.util.Map.of("rounds", keys));
+        }
+        // week/month/quarter/year
+        try {
+            Periods.Level lv = Periods.Level.of(level);
+            return Result.ok(java.util.Map.of(level + "s", home.memory().keys(lv)));
+        } catch (IllegalArgumentException e) {
+            return Result.error(e.getMessage());
+        }
     }
 
     private Result memoryRead(Map<String, Object> p) {
