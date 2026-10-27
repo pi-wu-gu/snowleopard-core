@@ -204,6 +204,33 @@ public final class DocsCheck {
         check("内置文档引用分析规范（单一事实源在分析文档）",
                 bt != null && bt.contains("分析 §三"), "");
 
+        // ── 工具清单（2026-10-27）：**新增/改名工具不改表 = 直接红** ──
+        // 表按"组 / 暴露名 / 作用 / 实现路径"四列组织；这里只做能机器判的部分：
+        // 口径数字、每个工具都在表里、实现路径列没被删。
+        Path inv = root.resolve("docs/工具清单-2026-10-27.md");
+        String invTxt = Files.isRegularFile(inv)
+                ? Files.readString(inv, StandardCharsets.UTF_8) : null;
+        int invTools = BuiltinGroups.all().stream()
+                .mapToInt(p -> p.describe().tools().size()).sum();
+        check("工具清单口径 == 运行时（7 组 35 工具）",
+                invTxt != null && invTxt.contains("7 组 " + invTools + " 工具"),
+                invTxt == null ? "文件不存在" : "缺 7 组 " + invTools + " 工具");
+        List<String> notInTable = new ArrayList<>();
+        if (invTxt != null) {
+            for (snowleopard.core.spi.ToolGroupProvider p : BuiltinGroups.all()) {
+                for (snowleopard.core.registry.ToolRegistry.Tool t : p.describe().tools()) {
+                    if (!invTxt.contains(t.name())) {
+                        notInTable.add(t.name());
+                    }
+                }
+            }
+        }
+        check("工具清单列全每个工具（新增工具必须同步改表）",
+                invTxt != null && notInTable.isEmpty(), notInTable.toString());
+        check("工具清单带实现路径列（不是只有名字）",
+                invTxt != null && invTxt.contains("BuiltinToolkit.java#")
+                        && invTxt.contains("BuiltinGroups.java#"), "");
+
         System.out.println("PASS docs: 通过 " + pass + " · 失败 " + fail);
         if (fail > 0) {
             System.exit(1);
