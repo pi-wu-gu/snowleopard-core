@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="snowleopard-core-0.5.2">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/dist/m2/snowleopard/core/snowleopard-core/0.5.2/snowleopard-core-0.5.2.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

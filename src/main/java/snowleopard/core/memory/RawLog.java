@@ -92,9 +92,10 @@ public final class RawLog {
             return this;
         }
 
-        /** 定稿落盘（幂等：同 key 重写覆盖）。 */
+        /** 定稿落盘（幂等：同 key 重写覆盖）。按天分文件夹：{@code memory-raw/<day>/round-<key>.jsonl}。 */
         public Round closeRound() {
-            Path dir = ids.mkdirs(caller, "memory-raw");
+            LocalDate day = dayOf(endedTs);
+            Path dir = ids.mkdirs(caller, "memory-raw/" + day);
             Path f = dir.resolve("round-" + key + ".jsonl");
             StringBuilder b = new StringBuilder();
             for (Entry e : entries) {
@@ -114,11 +115,29 @@ public final class RawLog {
         }
     }
 
-    /** 列出全部轮（按时间升序）。无调用 = 无轮 = 空列表（不是错误）。 */
+    /** 列出全部轮（按时间升序）。扫描 {@code memory-raw/} 下所有天子目录 + 兼容旧 flat 布局。 */
     public List<Round> listRounds() {
-        Path dir = ids.mkdirs(caller, "memory-raw");
+        Path root = ids.mkdirs(caller, "memory-raw");
         List<Round> out = new ArrayList<>();
-        try (Stream<Path> s = Files.list(dir)) {
+        try (Stream<Path> days = Files.list(root)) {
+            days.filter(Files::isDirectory)
+                    .sorted()
+                    .forEach(dayDir -> {
+                        try (Stream<Path> files = Files.list(dayDir)) {
+                            files.filter(p -> p.getFileName().toString().startsWith("round-"))
+                                    .sorted()
+                                    .forEach(p -> out.add(new Round(
+                                            p.getFileName().toString()
+                                                    .replaceFirst("^round-", "").replaceFirst("\\.jsonl$", ""),
+                                            parseKey(p.getFileName().toString()),
+                                            countLines(p))));
+                        } catch (IOException e) { /* skip unreadable dir */ }
+                    });
+        } catch (IOException e) {
+            throw new IllegalStateException("读取轮列表失败: " + e, e);
+        }
+        // 兼容旧 flat 布局（memory-raw/round-*.jsonl 直接在根下）
+        try (Stream<Path> s = Files.list(root)) {
             s.filter(p -> p.getFileName().toString().startsWith("round-"))
                     .sorted()
                     .forEach(p -> out.add(new Round(
@@ -126,15 +145,20 @@ public final class RawLog {
                                     .replaceFirst("^round-", "").replaceFirst("\\.jsonl$", ""),
                             parseKey(p.getFileName().toString()),
                             countLines(p))));
-        } catch (IOException e) {
-            throw new IllegalStateException("读取轮列表失败: " + e, e);
-        }
+        } catch (IOException e) { /* already handled above */ }
+        out.sort((a, b) -> Long.compare(a.endedTs(), b.endedTs()));
         return out;
     }
 
-    /** 读一轮的全部条目。 */
+    /** 读一轮的全部条目（兼容按天分文件夹与旧 flat 布局）。 */
     public List<Entry> readRound(String key) {
-        Path f = ids.resolve(caller, "memory-raw/round-" + key + ".jsonl");
+        // 新布局：memory-raw/<day>/round-<key>.jsonl
+        long ts = parseKey(key);
+        Path f = ids.resolve(caller, "memory-raw/" + dayOf(ts) + "/round-" + key + ".jsonl");
+        if (!Files.exists(f)) {
+            // 旧布局：memory-raw/round-<key>.jsonl
+            f = ids.resolve(caller, "memory-raw/round-" + key + ".jsonl");
+        }
         List<Entry> out = new ArrayList<>();
         if (!Files.exists(f)) {
             return out;
