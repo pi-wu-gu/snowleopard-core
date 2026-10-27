@@ -114,12 +114,14 @@ public final class CommunityCheck {
         check("把自己加入禁止列表 → Error", selfDeny instanceof Result.Error,
                 String.valueOf(selfDeny));
 
-        // 配额：再塞满 19 次（前面已有 1 次），第 21 次拒绝
-        for (int i = 0; i < 19; i++) {
+        // 配额：塞满到 QUOTA_PER_WINDOW（前面已有 1 次），下一次拒绝。
+        // **对着常量写**，别再写死 19/20/21——改配额时这里会自己跟上（2026-10-27 20→48）。
+        for (int i = 0; i < WakeStore.QUOTA_PER_WINDOW - 1; i++) {
             wake.request(solo, "alpha", "beta", "q" + i, null, "quota-" + i);
         }
         Result over = wake.request(solo, "alpha", "beta", "over", null, "quota-over");
-        check("一小时配额 20 次，第 21 次 → Error", over instanceof Result.Error
+        check("一小时配额 " + WakeStore.QUOTA_PER_WINDOW + " 次，第 "
+                + (WakeStore.QUOTA_PER_WINDOW + 1) + " 次 → Error", over instanceof Result.Error
                 && ((Result.Error) over).desc().contains("上限"), String.valueOf(over));
     }
 

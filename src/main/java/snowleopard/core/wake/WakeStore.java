@@ -32,8 +32,13 @@ import snowleopard.core.result.Result;
  */
 public final class WakeStore {
 
-    /** 单 ID 被唤起配额：一小时内最多 20 次（防唤醒风暴）。 */
-    public static final int QUOTA_PER_WINDOW = 20;
+    /**
+     * 单 ID 被唤起配额：一小时内最多 **48** 次（防唤醒风暴）。
+     *
+     * <p>2026-10-27 17:10 (UTC+8)：20 → 48。真人反复右键测试时 20 次太容易撞满，
+     * 玩家只会看到"唤醒被拒"而不知道为什么。真正该防的是"程序化风暴"，不是"人手点得快"。
+     */
+    public static final int QUOTA_PER_WINDOW = 48;
     public static final long WINDOW_MS = 60 * 60 * 1000L;
 
     /** 唤起链（从最初发起者到当前发起者；core 注入）。 */
