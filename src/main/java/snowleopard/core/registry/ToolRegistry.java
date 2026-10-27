@@ -64,11 +64,31 @@ public final class ToolRegistry {
     private final Map<String, Group> groups = new LinkedHashMap<>();
     private final Map<String, Boolean> enabled = new LinkedHashMap<>();
     private final List<Issue> issues = new ArrayList<>();
+    /** 无组工具合成组（{@code <来源>:solo}）：注入时单列，不算常规组。 */
+    private final Set<String> soloFulls = new java.util.LinkedHashSet<>();
 
     // ------------------------------------------------------------- 装载
 
     /** 注册（校验失败拒载留 ERROR，不中断整批——坏清单不该锁死全部）。 */
     public boolean register(Group g) {
+        return register(g, false);
+    }
+
+    /**
+     * 注册（{@code solo=true} 是装载器为无组工具合成的组，只此一条入口，不开第二条注册路径）。
+     *
+     * <p><b>{@code solo} 是保留组名</b>：真组撞名直接拒载——否则无组工具区与真组同名，
+     * 模型无法区分"这组是真的"还是"这是散件"。
+     *
+     * <p><b>详解目录缺失只记 WARN 不拒载</b>（2026-10-27 裁决）：缺目录的后果是模型拼不出工具路径
+     * （效果等于没查），属可用性问题而非安全问题；拒载会让"某仓库还没补 details"直接阻断构建。
+     * 各仓 check 做硬断言，把"该补"落在 CI 而不是装载期。
+     */
+    public boolean register(Group g, boolean solo) {
+        if (!solo && "solo".equals(g.id().group())) {
+            issues.add(Issue.error(g.full(), "拒载: 「solo」是保留组名（无组工具专用）"));
+            return false;
+        }
         List<String> bad = validate(g);
         if (!bad.isEmpty()) {
             for (String b : bad) {
@@ -83,7 +103,31 @@ public final class ToolRegistry {
         }
         groups.put(g.full(), g);
         enabled.put(g.full(), g.availability() != Availability.DEFAULT_OFF);
+        if (solo) {
+            soloFulls.add(g.full());
+        }
+        warnDetails(g);
         return true;
+    }
+
+    /** 组详解必须带"功能 + 完整目录"：缺/不全只记 WARN（见 {@link #register(Group, boolean)} 的理由）。 */
+    private void warnDetails(Group g) {
+        String details = g.details() == null ? "" : g.details();
+        if (details.isBlank()) {
+            issues.add(Issue.warn(g.full(), "详解缺失：应写「功能 + 目录（全部成员）+ 使用要点」——"
+                    + "缺目录时模型拼不出可调用路径，逐级查询等于白查"));
+            return;
+        }
+        List<String> missing = new ArrayList<>();
+        for (Tool t : g.tools()) {
+            if (!details.contains(t.name())) {
+                missing.add(t.name());
+            }
+        }
+        if (!missing.isEmpty()) {
+            issues.add(Issue.warn(g.full(), "详解未列出成员 " + missing + "：目录必须完整"
+                    + "（模型靠目录确认工具路径）"));
+        }
     }
 
     /**
@@ -207,6 +251,133 @@ public final class ToolRegistry {
     }
 
     /**
+     * 组清单<b>按来源分节</b>（2026-10-27 15:07 裁决）：跨来源重名是常态（谁都能起 {@code move}），
+     * 所以注入只给全名；来源已在全名里，不再另打分类标签。
+     *
+     * <p>无组工具（{@code <来源>:solo}）不进本节——它们在 {@link #injectionBlock()} 里单列。
+     */
+    public List<String> briefsBySource() {
+        return briefsBySource(null);
+    }
+
+    /**
+     * 按来源过滤的组清单（{@code sourceFilter} 支持 {@code builtin} / {@code mod:snowleopard} 两种写法）。
+     * 过滤只影响"列哪些"，不影响"哪些可用"——权限与启用态另算。
+     */
+    public List<String> briefsBySource(String sourceFilter) {
+        Map<String, List<Group>> bySource = new LinkedHashMap<>();
+        for (Group g : groups.values()) {
+            if (soloFulls.contains(g.full())) {
+                continue;
+            }
+            String source = g.id().type().wire() + ":" + g.id().sourceId();
+            if (!sourceMatches(sourceFilter, source)) {
+                continue;
+            }
+            bySource.computeIfAbsent(source, k -> new ArrayList<>()).add(g);
+        }
+        List<String> out = new ArrayList<>();
+        for (Map.Entry<String, List<Group>> e : bySource.entrySet()) {
+            out.add("[" + e.getKey() + "] " + e.getValue().size() + " 组");
+            for (Group g : e.getValue()) {
+                String head = "- " + g.full() + " — " + firstLine(g.summary()) + "  (" + g.tools().size() + ")";
+                out.add(isEnabled(g.full()) ? head : head + "（未启用，仅名称）");
+            }
+        }
+        return out;
+    }
+
+    /** 组级视图（逐级查询的第二跳）：组身份 + 详解 + 成员名单（名字 + 一行简介，<b>不含参数</b>）。 */
+    public String members(String name, Map<String, String> aliases) {
+        Names.Resolution r = names.resolve(name, aliases);
+        if (r instanceof Names.Resolution.NotFound) {
+            return "没有名为 " + name + " 的组（用 tool_list 看可用组；要看某个工具用「组.工具」）";
+        }
+        if (r instanceof Names.Ambiguous a) {
+            return a.message();
+        }
+        Group g = groups.get(((Names.Resolution.Found) r).full());
+        if (g == null) {
+            return "没有名为 " + name + " 的组（注册表与名字表不一致——请报告此状态）";
+        }
+        if (!isEnabled(g.full())) {
+            return g.full() + "（未启用，仅名称）";
+        }
+        StringBuilder b = new StringBuilder();
+        b.append("组 ").append(g.full()).append('\n');
+        b.append("简介: ").append(g.summary()).append('\n');
+        if (g.details() != null && !g.details().isBlank()) {
+            b.append("详解:\n").append(g.details().strip()).append('\n');
+        }
+        b.append("成员 ").append(g.tools().size())
+                .append(" 个（要看某个工具的用法/参数：tool_help(\"").append(g.id().group())
+                .append(".工具名\"），已加入工作集的组下一轮起可直接调用）:\n");
+        for (Tool t : g.tools()) {
+            b.append("- ").append(t.name()).append(" — ")
+                    .append(t.hasSummary() ? t.summary() : "（无简介）").append('\n');
+        }
+        return b.toString();
+    }
+
+    /** 无组工具合成组（{@code <来源>:solo}）——仅供注入与查询单列，不算常规组。 */
+    public List<Group> soloGroups() {
+        return soloGroups(null);
+    }
+
+    /** 同上，可按来源过滤（{@code builtin} / {@code mod:snowleopard}）。 */
+    public List<Group> soloGroups(String sourceFilter) {
+        List<Group> out = new ArrayList<>();
+        for (String full : soloFulls) {
+            Group g = groups.get(full);
+            if (g != null && sourceMatches(sourceFilter, g.id().type().wire() + ":" + g.id().sourceId())) {
+                out.add(g);
+            }
+        }
+        return out;
+    }
+
+    public boolean isSolo(String groupFull) {
+        return soloFulls.contains(groupFull);
+    }
+
+    /**
+     * 每轮进上下文的那一块（{@code 用法说明 + 组清单 + 无组工具}）。
+     *
+     * <p><b>为什么由 core 生成而不是宿主拼</b>：多宿主共用一段文案，放宿主就会各写一版、措辞漂移；
+     * 而这段话直接决定模型会不会去用逐级查询——它错了，整套机制等于没接。
+     *
+     * <p>**组内工具一个都不列**（命题的硬要求）：给了就退回"平铺"，逐级查询失去意义。
+     */
+    public String injectionBlock() {
+        StringBuilder b = new StringBuilder();
+        b.append("【工具的分组方式】\n")
+                .append("工具按「组」组织：组有名字、来源、功能说明和一份目录（组内有哪些工具）。\n")
+                .append("本轮只给你组清单；组内工具的用法不在这里，用 tool_help 查")
+                .append("（知道组名就能查，也能按组内目录只取其中一个）。\n")
+                .append("查过的组会加入本轮工具表，下一轮起可直接调用；不再需要时用 tool_scope remove 移出（省上下文）。\n\n");
+        b.append("【工具组清单】").append(groups.size() - soloFulls.size())
+                .append(" 组 · 按来源分节（跨来源重名用全名区分）\n");
+        for (String line : briefsBySource()) {
+            b.append(line).append('\n');
+        }
+        List<Group> solos = soloGroups();
+        if (!solos.isEmpty()) {
+            b.append("\n【无组工具】（没有所属组，简介与用法直接给全）\n");
+            for (Group g : solos) {
+                b.append("- ").append(g.full()).append(" — ").append(g.id().sourceId())
+                        .append(" · 无组工具（").append(g.tools().size()).append(" 个）\n");
+                for (Tool t : g.tools()) {
+                    b.append("  · ").append(t.name()).append(" — ")
+                            .append(t.hasSummary() ? t.summary() : "（无简介）").append('\n');
+                    b.append("    用法: ").append(t.usage()).append('\n');
+                    b.append("    参数: ").append(t.params()).append('\n');
+                }
+            }
+        }
+        return b.toString();
+    }
+
+    /**
      * 统一查询入口（按需的那份）：返回组/工具详解。
      * 禁用对象**只回名称**（分析 §10.4：搜得到名字、搜不到详解）。
      */
@@ -221,7 +392,7 @@ public final class ToolRegistry {
         Names.Resolution r = names.resolve(groupPart, aliases);
         if (r instanceof Names.Resolution.NotFound) {
             // M7：注销/未注册要"报不存在"而不是静默 null（调用方漏判 null 就是假成功温床）
-            return "工具不存在: " + groupPart + "（未注册或已注销——重新 tool_search 看可用工具）";
+            return "工具不存在: " + groupPart + "（未注册或已注销——用 tool_list 看可用组）";
         }
         if (r instanceof Names.Ambiguous a) {
             return a.message();
@@ -285,12 +456,18 @@ public final class ToolRegistry {
     }
 
     private static boolean sourceOk(Names.Qualified id, String filter) {
+        return sourceMatches(filter, id.type().wire() + ":" + id.sourceId());
+    }
+
+    /** 来源过滤：接受 {@code sourceId}（{@code snowleopard}）或 {@code type:sourceId}（{@code mod:snowleopard}）。 */
+    private static boolean sourceMatches(String filter, String sourceKey) {
         if (filter == null || filter.isBlank()) {
             return true;
         }
         String f = filter.trim().toLowerCase(Locale.ROOT);
-        return id.sourceId().toLowerCase(Locale.ROOT).equals(f)
-                || (id.type().wire() + ":" + id.sourceId()).toLowerCase(Locale.ROOT).equals(f);
+        String key = sourceKey.toLowerCase(Locale.ROOT);
+        String sid = key.substring(key.indexOf(':') + 1);
+        return key.equals(f) || sid.equals(f);
     }
 
     // ------------------------------------------------------------- 杂项

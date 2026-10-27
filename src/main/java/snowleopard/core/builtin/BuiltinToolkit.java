@@ -8,6 +8,9 @@ import java.util.Locale;
 import java.util.Map;
 
 import snowleopard.core.memory.Periods;
+import snowleopard.core.names.Names;
+import snowleopard.core.registry.ToolExposure;
+import snowleopard.core.registry.ToolRegistry;
 import snowleopard.core.result.Result;
 import snowleopard.core.session.SessionGate;
 import snowleopard.core.todo.TodoStore;
@@ -43,6 +46,7 @@ public final class BuiltinToolkit {
             case "notes" -> notes(tool, p);
             case "wake" -> wake(tool, p);
             case "group" -> group(tool, p);
+            case "tool" -> catalog(tool, p);
             default -> throw new IllegalArgumentException("未知内置组: " + group
                     + "（可选 " + String.join(" | ", BuiltinGroups.GROUP_NAMES) + "）");
         };
@@ -354,11 +358,187 @@ public final class BuiltinToolkit {
         }
     }
 
+    // ------------------------------------------------------------- 工具目录
+
+    /** tool_help / tool_scope 一次最多处理几个目标：防"一次要把全量拉回来"退化成平铺。 */
+    private static final int MAX_TARGETS = 4;
+
+    /**
+     * 工具目录（第 7 组，2026-10-27 16:10 (UTC+8)）：列组 / 查详解 / 增删工作集。
+     *
+     * <p>三个工具都是**薄包装**——数据在注册表、状态在工作集；这里只做参数校验与"下一步"提示。
+     * 查到就取用（pin）：命中即把该组（或该工具）记入工作集，宿主下一轮声明时才带签名（解锁可回）。
+     */
+    private Result catalog(String tool, Map<String, Object> p) {
+        return switch (tool) {
+            case "tool_list" -> toolList(p);
+            case "tool_help" -> toolHelp(p);
+            case "tool_scope" -> toolScope(p);
+            default -> unknown("tool", tool);
+        };
+    }
+
+    private Result toolList(Map<String, Object> p) {
+        ToolRegistry reg = home.registry();
+        String source = str(p, "source");
+        StringBuilder b = new StringBuilder("工具组清单（按来源分节）：\n");
+        List<String> lines = reg.briefsBySource(source);
+        if (lines.isEmpty()) {
+            b.append("（没有匹配来源「").append(source).append("」的已装载组）\n");
+        }
+        for (String line : lines) {
+            b.append(line).append('\n');
+        }
+        List<ToolRegistry.Group> solos = reg.soloGroups(source);
+        if (!solos.isEmpty()) {
+            b.append("\n【无组工具】\n");
+            for (ToolRegistry.Group g : solos) {
+                b.append("- ").append(g.full()).append(" — ").append(g.id().sourceId())
+                        .append(" · 无组工具（").append(g.tools().size()).append(" 个）\n");
+            }
+        }
+        b.append("\n用法：tool_help(\"组名\") 看组详解与成员（查到即加入工作集，下一轮可调用）；")
+                .append("tool_scope add|remove 显式增删；写「组.工具」可只取一个。");
+        return Result.ok(b.toString());
+    }
+
+    private Result toolHelp(Map<String, Object> p) {
+        String targets = str(p, "targets");
+        if (targets == null) {
+            return Result.error("tool_help 需要 targets（组名 或 组.工具，逗号分隔，一次最多 " + MAX_TARGETS + " 个）");
+        }
+        List<String> ts = splitTargets(targets);
+        if (ts.isEmpty()) {
+            return Result.error("tool_help 需要 targets（组名 或 组.工具）");
+        }
+        if (ts.size() > MAX_TARGETS) {
+            return Result.error("一次最多查 " + MAX_TARGETS + " 个（防止把全量清单一次拉回来）——请分批查");
+        }
+        ToolRegistry reg = home.registry();
+        ToolExposure ex = home.exposure();
+        String me = home.callerId();
+        StringBuilder b = new StringBuilder();
+        int pinned = 0;
+        for (String t : ts) {
+            int dot = t.indexOf('.');
+            String text;
+            if (dot > 0) {
+                String groupFull = resolveGroup(t.substring(0, dot));
+                String toolName = t.substring(dot + 1);
+                text = reg.help(t, Map.of());
+                if (groupFull != null && toolExists(groupFull, toolName)) {
+                    ex.pinTool(me, groupFull, toolName);
+                    pinned++;
+                }
+            } else {
+                String groupFull = resolveGroup(t);
+                text = reg.members(t, Map.of());
+                if (groupFull != null) {
+                    ex.pinGroup(me, groupFull);
+                    pinned++;
+                }
+            }
+            b.append("=== ").append(t).append(" ===\n").append(text);
+            if (!text.endsWith("\n")) {
+                b.append('\n');
+            }
+        }
+        b.append("\n（已取用 ").append(pinned).append(" 项：**下一轮**请求起这些工具带签名，本轮别等；")
+                .append("不再需要时 tool_scope remove）");
+        return Result.ok(b.toString());
+    }
+
+    private Result toolScope(Map<String, Object> p) {
+        String action = str(p, "action");
+        String target = str(p, "target");
+        if (action == null || target == null) {
+            return Result.error("tool_scope 需要 action（add|remove）与 target（组名 或 组.工具，逗号分隔）");
+        }
+        String act = action.toLowerCase(Locale.ROOT);
+        if (!act.equals("add") && !act.equals("remove")) {
+            return Result.error("action 只能是 add 或 remove: " + action);
+        }
+        ToolExposure ex = home.exposure();
+        String me = home.callerId();
+        StringBuilder b = new StringBuilder();
+        for (String t : splitTargets(target)) {
+            int dot = t.indexOf('.');
+            if (dot > 0) {
+                String groupFull = resolveGroup(t.substring(0, dot));
+                String toolName = t.substring(dot + 1);
+                if (groupFull == null) {
+                    b.append("- ").append(t).append("：没有这个组（tool_list 看可用组）\n");
+                    continue;
+                }
+                if (!toolExists(groupFull, toolName)) {
+                    b.append("- ").append(t).append("：该组没有这个工具\n");
+                    continue;
+                }
+                if (act.equals("add")) {
+                    ex.pinTool(me, groupFull, toolName);
+                } else {
+                    ex.unpinTool(me, groupFull, toolName);
+                }
+                b.append("- ").append(act).append(' ').append(groupFull).append('.').append(toolName).append("：OK\n");
+            } else {
+                String groupFull = resolveGroup(t);
+                if (groupFull == null) {
+                    b.append("- ").append(t).append("：没有这个组（tool_list 看可用组）\n");
+                    continue;
+                }
+                if (act.equals("add")) {
+                    ex.pinGroup(me, groupFull);
+                } else if (!ex.unpinGroup(me, groupFull)) {
+                    b.append("- ").append(groupFull).append("：本来就没取用\n");
+                    continue;
+                }
+                b.append("- ").append(act).append(' ').append(groupFull).append("：OK\n");
+            }
+        }
+        b.append("工作集：组 ").append(ex.pinnedGroups(me))
+                .append("；单工具 ").append(ex.pinnedTools(me));
+        return Result.ok(b.toString());
+    }
+
+    private static List<String> splitTargets(String s) {
+        List<String> out = new ArrayList<>();
+        for (String part : s.split(",")) {
+            String t = part.trim();
+            if (!t.isEmpty()) {
+                out.add(t);
+            }
+        }
+        return out;
+    }
+
+    /** 短名/全名 → 组全名；歧义与不存在都返回 null（消息由 {@code members/help} 给，不在这里猜）。 */
+    private String resolveGroup(String name) {
+        Names.Resolution r = home.registry().names().resolve(name, Map.of());
+        if (r instanceof Names.Resolution.Found f) {
+            return f.full();
+        }
+        return null;
+    }
+
+    private boolean toolExists(String groupFull, String toolName) {
+        for (ToolRegistry.Group g : home.registry().groups()) {
+            if (!g.full().equals(groupFull)) {
+                continue;
+            }
+            for (ToolRegistry.Tool t : g.tools()) {
+                if (t.name().equals(toolName)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     // ------------------------------------------------------------- 内部
 
     private static Result unknown(String group, String tool) {
         return Result.error("未知工具: builtin:" + BuiltinGroups.SOURCE_ID + ":" + group + ":" + tool
-                + "（先 tool_search 看该组可用工具）");
+                + "（用 tool_list 看有哪些组，再用 tool_help 查用法）");
     }
 
     /** 取字符串参数：缺省/空白 → null（不把空串当合法值）。 */

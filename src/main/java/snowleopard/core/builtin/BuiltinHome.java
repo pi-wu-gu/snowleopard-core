@@ -24,6 +24,12 @@ public interface BuiltinHome {
     /** 调用方 ID（core 注入，模型不可伪造）——协作面的 actor 就是它。 */
     String callerId();
 
+    /** 工具注册表（工具目录组要在运行期查组/查工具；**只读用法**，注册入口在装载器）。 */
+    snowleopard.core.registry.ToolRegistry registry();
+
+    /** 工具工作集（工具目录组增删；按 caller_id 存，core 内隔离）。 */
+    snowleopard.core.registry.ToolExposure exposure();
+
     TodoStore todos();
 
     NoteStore notes();

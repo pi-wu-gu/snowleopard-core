@@ -25,6 +25,9 @@ import snowleopard.core.report.Issue;
  */
 public final class ProviderLoader {
 
+    /** 无组工具的合成组名（**保留名**：真组撞名由注册表拒载）。 */
+    public static final String SOLO_GROUP = "solo";
+
     private final ToolRegistry registry;
     /** 已装载的 provider（按全名，注销时用）。 */
     private final Map<String, ToolGroupProvider> loaded = new LinkedHashMap<>();
@@ -35,7 +38,11 @@ public final class ProviderLoader {
 
     /**
      * 装载一个 provider。校验顺序（顺序即语义）：
-     * coreApi 匹配 → 来源非空 → 注册进注册表（注册表自己再做清单校验与重名判定）。
+     * coreApi 匹配 → 来源非空 → 无组工具（若有）必须带简介 → 注册进注册表
+     * （注册表自己再做清单校验、保留名与重名判定）。
+     *
+     * <p><b>无组工具</b>（2026-10-27）：{@code descriptor.group()} 留空时由**装载器合成**组名
+     * {@link #SOLO_GROUP}——provider 不构造限定名这条铁律在无组工具上同样成立（否则可冒用别人来源）。
      *
      * @return 全名（成功）或 null（拒载；详情在 {@link #issues()}）
      */
@@ -51,16 +58,44 @@ public final class ProviderLoader {
             return null;
         }
         ToolGroupProvider.Descriptor d = p.describe();
-        Names.Qualified q = new Names.Qualified(type, p.sourceId(), d.group());
-        ToolRegistry.Group g = new ToolRegistry.Group(q, d.category(), d.summary(),
-                d.details(), d.availability(), d.tools());
-        if (!registry.register(g)) {
-            // 注册表已留详细 ERROR（重名/清单不合格）
+        boolean solo = d.solo();
+        if (solo) {
+            // 无组工具没有组详解兜底 → 简介与用法是它唯一的信息源，缺一即拒载
+            for (ToolRegistry.Tool t : d.tools()) {
+                if (!t.hasSummary() || t.usage() == null || t.usage().isBlank()) {
+                    issues.add(Issue.error(p.sourceId() + ":" + SOLO_GROUP,
+                            "拒载: 无组工具「" + t.name() + "」必须带简介与用法（summary + usage）——"
+                                    + "无组工具没有组详解可兜底"));
+                    return null;
+                }
+            }
+        }
+        Names.Qualified q = new Names.Qualified(type, p.sourceId(), solo ? SOLO_GROUP : d.group());
+        ToolRegistry.Group g = new ToolRegistry.Group(q,
+                solo ? "solo" : d.category(),
+                solo ? p.sourceId() + " · 无组工具" : d.summary(),
+                solo ? soloDetails(p.sourceId(), d.tools()) : d.details(),
+                d.availability(), d.tools());
+        if (!registry.register(g, solo)) {
+            // 注册表已留详细 ERROR（重名/清单不合格/保留名）
             issues.addAll(registry.issues());
             return null;
         }
         loaded.put(g.full(), p);
         return g.full();
+    }
+
+    /** 无组工具的组详解（三段模板的目录形式）——目录必须完整，否则模型拼不出路径。 */
+    private static String soloDetails(String sourceId, List<ToolRegistry.Tool> tools) {
+        StringBuilder b = new StringBuilder();
+        b.append("功能：").append(sourceId).append(" 的无组工具（不隶属任何组；仅为稳定性兜底，常规工具应入组）\n");
+        b.append("目录：\n");
+        for (ToolRegistry.Tool t : tools) {
+            b.append("- ").append(t.name()).append(" — ")
+                    .append(t.hasSummary() ? t.summary() : "（无简介）").append('\n');
+        }
+        b.append("使用要点：无组工具无需逐级查询，签名与用法已直接注入（没有下一级可查）");
+        return b.toString();
     }
 
     /** 批量装载（部分失败不锁死其余——与注册表"坏清单不锁死整批"同原则）。 */

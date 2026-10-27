@@ -35,20 +35,34 @@ public interface ToolGroupProvider {
     /** 组描述（不含限定名——那由装载器按来源拼）。 */
     Descriptor describe();
 
-    /** 组描述：组短名 + 简介（必填）+ 详解（可选）+ 分类 + 可用性 + 工具清单。 */
+    /**
+     * 组描述：组短名 + 简介（必填）+ 详解（可选）+ 分类 + 可用性 + 工具清单。
+     *
+     * <p><b>无组工具（{@code group} 留空）</b>：2026-10-27 起允许 provider 声明"一组不属于任何组的工具"，
+     * 装载器把它合成为 {@code <来源>:solo}（{@code solo} 是保留组名，真组撞名即拒载）。
+     * 这条通道<b>只为稳定性兜底</b>：常规情况工具必须入组，否则组清单的分层价值被稀释；
+     * 无组工具没有组详解兜底，所以每个工具**必须带简介**（装载期校验，缺即拒载）。
+     */
     record Descriptor(String group, String category, String summary, String details,
                       ToolRegistry.Availability availability,
                       List<ToolRegistry.Tool> tools) {
 
         public Descriptor {
-            if (group == null || group.isBlank()) {
-                throw new IllegalArgumentException("组短名不能为空");
-            }
-            if (summary == null || summary.isBlank()) {
-                throw new IllegalArgumentException("工具组必须带简介（分析 §一.2）: " + group);
-            }
+            group = group == null ? "" : group;
             tools = tools == null ? List.of() : List.copyOf(tools);
             availability = availability == null ? ToolRegistry.Availability.NORMAL : availability;
+            if (group.isBlank()) {
+                if (tools.isEmpty()) {
+                    throw new IllegalArgumentException("无组工具声明必须至少带一个工具（group 留空只对无组工具有效）");
+                }
+            } else if (summary == null || summary.isBlank()) {
+                throw new IllegalArgumentException("工具组必须带简介（分析 §一.2）: " + group);
+            }
+        }
+
+        /** 是否无组工具声明（{@code group} 留空）。 */
+        public boolean solo() {
+            return group.isBlank();
         }
     }
 

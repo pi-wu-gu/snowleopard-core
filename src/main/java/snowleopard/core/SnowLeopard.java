@@ -50,6 +50,9 @@ public final class SnowLeopard {
     private final Options options;
     /** root 级：唤醒请求（宿主 poll/complete 用；策略与已读位仍按 actor 落各自的家）。 */
     private final snowleopard.core.wake.WakeStore wake;
+    /** root 级：工具工作集（按 caller_id 存；模型主动取用/释放工具组，见 ToolExposure 的三条不变式）。 */
+    private final snowleopard.core.registry.ToolExposure exposure =
+            new snowleopard.core.registry.ToolExposure();
 
     private SnowLeopard(Ids ids, ToolRegistry registry, ProviderLoader loader,
                         Permissions permissions, Options options,
@@ -99,6 +102,11 @@ public final class SnowLeopard {
 
     public ToolRegistry registry() {
         return registry;
+    }
+
+    /** 工具工作集（按 caller_id 存）：宿主每轮据此决定"给哪些工具签名"，会话开始时 clear。 */
+    public snowleopard.core.registry.ToolExposure exposure() {
+        return exposure;
     }
 
     /** 装载/卸载的控制点在装载器上（S5：门面只转发，不吞生命周期）。 */
@@ -152,6 +160,7 @@ public final class SnowLeopard {
     public static final class CallerScope implements BuiltinHome {
 
         private final Ids.Caller caller;
+        private final SnowLeopard core;
         private final Path home;
         private final TodoStore todos;
         private final NoteStore notes;
@@ -167,6 +176,7 @@ public final class SnowLeopard {
         private volatile List<String> wakeChain;
 
         private CallerScope(SnowLeopard core, Ids.Caller caller) {
+            this.core = core;
             this.caller = caller;
             this.home = core.ids.home(caller);
             this.todos = new TodoStore(core.ids, caller);
@@ -191,6 +201,18 @@ public final class SnowLeopard {
         @Override
         public String callerId() {
             return caller.id();
+        }
+
+        /** 注册表（工具目录组运行期查询用；只读用法——注册入口在装载器）。 */
+        @Override
+        public snowleopard.core.registry.ToolRegistry registry() {
+            return core.registry();
+        }
+
+        /** 工作集（按 caller_id 存；core 内隔离）。 */
+        @Override
+        public snowleopard.core.registry.ToolExposure exposure() {
+            return core.exposure();
         }
 
         /** 家目录（工具工作目录默认挂这里）。 */

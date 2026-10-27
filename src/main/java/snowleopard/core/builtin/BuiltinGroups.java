@@ -28,13 +28,48 @@ public final class BuiltinGroups {
     /** 内置组的来源 ID（限定名第二段）。 */
     public static final String SOURCE_ID = "core";
 
-    /** 六组短名（顺序即装载顺序：会话 → 记忆 → 任务 → 笔记 → 唤醒 → 群组）。 */
-    public static final List<String> GROUP_NAMES = List.of("session", "memory", "todo", "notes",
+    /** 工具目录组短名（第 7 组）：逐级查询与工作集的唯一入口，恒在（元工具不可裁）。 */
+    public static final String CATALOG_GROUP = "tool";
+
+    /**
+     * 七组短名（顺序即装载顺序）：**工具目录在最前**（模型先看到"怎么查"，再看到有哪些组），
+     * 其后会话 → 记忆 → 任务 → 笔记 → 唤醒 → 群组。
+     */
+    public static final List<String> GROUP_NAMES = List.of("tool", "session", "memory", "todo", "notes",
             "wake", "group");
 
-    /** 六组 provider（每次调用返回新实例——provider 无状态，注册表持有描述即可）。 */
+    /** 七组 provider（每次调用返回新实例——provider 无状态，注册表持有描述即可）。 */
     public static List<ToolGroupProvider> all() {
-        return List.of(session(), memory(), todo(), notes(), wake(), group());
+        return List.of(tool(), session(), memory(), todo(), notes(), wake(), group());
+    }
+
+    // ------------------------------------------------------------- 工具目录
+
+    /**
+     * 工具目录（第 7 组，2026-10-27 16:00 (UTC+8)）：**逐级查询的唯一入口**。
+     *
+     * <p>为什么必须存在：本轮只注入组清单，组内工具的用法按需查——没有这三个工具，
+     * "组内工具信息不注入"就等于让模型猜（全量平铺的老路）。ALWAYS_ON：目录被禁用 = 模型彻底失明。
+     */
+    public static ToolGroupProvider tool() {
+        return provider(CATALOG_GROUP, "builtin/tool", Availability.ALWAYS_ON,
+                "工具目录（不可禁用）：列组、查组内工具、增删工作集",
+                "tool_help / tool_scope 的 target 可写组短名或全名，多个用逗号分隔（一次最多 4 个）；"
+                        + "加入工作集后**下一轮**请求才带签名——本轮别等。",
+                List.of(
+                        new Tool("tool_list", "列工具组（按来源分节）与无组工具",
+                                "tool_list(source?) → 组清单 {全名, 简介, 工具数, 启用态} + 无组工具",
+                                ps(List.of(),
+                                        "source", "只列某个来源（builtin | snowleopard | mod:snowleopard）")),
+                        new Tool("tool_help", "查组详解与成员，或查单个工具的用法；查到即加入工作集",
+                                "tool_help(targets) → 组: 详解+成员名单 | 组.工具: 用法+参数；下一轮起可调用",
+                                ps(List.of("targets"),
+                                        "targets", "组名 或 组.工具，逗号分隔；短名歧义时报候选不猜（≤4 个）")),
+                        new Tool("tool_scope", "显式增删工作集（省上下文；可只取组内某个工具）",
+                                "tool_scope(action, target) → 当前工作集 {groups, tools}",
+                                ps(List.of("action", "target"),
+                                        "action", "add | remove",
+                                        "target", "组名 或 组.工具，逗号分隔"))));
     }
 
     // ------------------------------------------------------------- 会话
@@ -255,14 +290,39 @@ public final class BuiltinGroups {
 
     // ------------------------------------------------------------- 内部
 
+    /**
+     * provider 装配：**组详解在装配时生成**（三段模板）。
+     *
+     * <p>为什么要生成而不是各写一遍：详解必须列出**全部成员与一行说明**（目录），
+     * 手写会漏、漏了模型就拼不出可调用路径（"这组管移动" → 猜 `goto` 还是 `navigate`）。
+     * 从 {@code tools} 直接渲染，目录永远不会缺，也不会与清单漂移。
+     *
+     * <p>{@code notes} 是"使用要点"（约束/红线/坑），仍由各组自己写。
+     */
     private static ToolGroupProvider provider(String group, String category, Availability availability,
-                                             String summary, String details, List<Tool> tools) {
+                                             String summary, String notes, List<Tool> tools) {
+        String details = renderDetails(summary, notes, tools);
         return new ToolGroupProvider.Simple(Version.CORE_API, SOURCE_ID) {
             @Override
             public Descriptor describe() {
                 return new Descriptor(group, category, summary, details, availability, tools);
             }
         };
+    }
+
+    /** 三段模板：功能（组简介首行）+ 目录（全部成员，名字 + 一行说明）+ 使用要点。 */
+    private static String renderDetails(String summary, String notes, List<Tool> tools) {
+        StringBuilder b = new StringBuilder();
+        b.append("功能：").append(summary).append('\n');
+        b.append("目录：\n");
+        for (Tool t : tools) {
+            b.append("- ").append(t.name()).append(" — ")
+                    .append(t.hasSummary() ? t.summary() : "（无简介）").append('\n');
+        }
+        if (notes != null && !notes.isBlank()) {
+            b.append("使用要点：").append(notes.strip());
+        }
+        return b.toString();
     }
 
     /**
@@ -279,9 +339,9 @@ public final class BuiltinGroups {
         return Collections.unmodifiableMap(m);
     }
 
-    /** 组名 → 该组是否 ALWAYS_ON（权限文件默认放行判据）。 */
+    /** 组名 → 该组是否默认放行（权限文件未提时的降级判据）。目录组同属"关掉就没有能力"的一类。 */
     public static boolean alwaysOn(String group) {
-        return "session".equals(group) || "memory".equals(group);
+        return CATALOG_GROUP.equals(group) || "session".equals(group) || "memory".equals(group);
     }
 
     private BuiltinGroups() {

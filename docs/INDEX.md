@@ -21,7 +21,7 @@
 
 ## 参考（reference）
 
-- `docs/行为规格清单-2026-10-23.md` —— 365 条断言各锁什么契约（check 即规格的可读投影）
+- `docs/行为规格清单-2026-10-23.md` —— 387 条断言各锁什么契约（check 即规格的可读投影）
 - `docs/内置工具组-2026-10-23.md` —— **六组清单（32 工具）** + 执行面 + 两段式 + 权限自带默认
 - 源码 javadoc —— 契约细节；manifest JSON 形态见 `ToolRegistry.loadManifest`
 - 各包 `package-info.java` —— 每包一句话职责

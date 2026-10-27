@@ -184,23 +184,23 @@ public final class DocsCheck {
         // 工具数是**能对着运行时判**的那一条：文档写的 32 必须等于注册表里真的 32
         int declaredTools = BuiltinGroups.all().stream()
                 .mapToInt(p -> p.describe().tools().size()).sum();
-        check("内置工具数：文档口径 == 注册实际 == 32",
-                declaredTools == 32 && bt != null && bt.contains("32 工具"),
+        check("内置工具数：文档口径 == 注册实际 == 35",
+                declaredTools == 35 && bt != null && bt.contains("35 工具"),
                 "注册 " + declaredTools);
 
         System.out.println("== 10 内置工具组文档纳管（2026-10-23 19:40） ==");
         List<String> noGroup = new ArrayList<>();
-        for (String g : List.of("builtin:core:session", "builtin:core:memory",
+        for (String g : List.of("builtin:core:tool", "builtin:core:session", "builtin:core:memory",
                 "builtin:core:todo", "builtin:core:notes",
                 "builtin:core:wake", "builtin:core:group")) {
             if (bt == null || !bt.contains(g)) {
                 noGroup.add(g);
             }
         }
-        check("内置文档点名六组全名（0 漏）", noGroup.isEmpty(), noGroup.toString());
-        check("内置文档写清 32 工具口径（清单即政策）", bt != null && bt.contains("32 工具"), "");
+        check("内置文档点名七组全名（0 漏）", noGroup.isEmpty(), noGroup.toString());
+        check("内置文档写清 35 工具口径（清单即政策）", bt != null && bt.contains("35 工具"), "");
         check("内置文档明确记账\"壳侧未接\"（未做的不许当做过）",
-                bt != null && bt.contains("六组全部已接壳"), "");
+                bt != null && bt.contains("七组全部已接壳"), "");
         check("内置文档引用分析规范（单一事实源在分析文档）",
                 bt != null && bt.contains("分析 §三"), "");
 

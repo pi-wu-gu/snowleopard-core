@@ -8,6 +8,7 @@ import java.util.Map;
 import snowleopard.core.SnowLeopard;
 import snowleopard.core.builtin.BuiltinGroups;
 import snowleopard.core.builtin.BuiltinToolkit;
+import snowleopard.core.registry.ToolExposure;
 import snowleopard.core.registry.ToolRegistry;
 import snowleopard.core.registry.ToolRegistry.Availability;
 import snowleopard.core.result.Result;
@@ -45,7 +46,7 @@ public final class BuiltinCheck {
 
         // ── ① 注册面 ───────────────────────────────────────────────
         System.out.println("== 1 注册面（注入/查询） ==");
-        check("六组全注册（恰 6）", reg.groups().size() == 6, "实际 " + reg.groups().size());
+        check("七组全注册（恰 7）", reg.groups().size() == 7, "实际 " + reg.groups().size());
         for (String g : BuiltinGroups.GROUP_NAMES) {
             String full = "builtin:core:" + g;
             check("注册含 " + full, reg.groups().stream().anyMatch(x -> x.full().equals(full)),
@@ -57,11 +58,11 @@ public final class BuiltinCheck {
         check("任务/笔记 NORMAL（可关）",
                 avail(reg, "builtin:core:todo") == Availability.NORMAL
                         && avail(reg, "builtin:core:notes") == Availability.NORMAL, "");
-        check("工具总数 32（四基础组 18 + 唤醒 4 + 群组 10）", reg.toolCount() == 32,
+        check("工具总数 35（四基础组 18 + 唤醒 4 + 群组 10 + 目录 3）", reg.toolCount() == 35,
                 "实际 " + reg.toolCount());
         List<String> briefs = reg.briefs();
         String briefText = String.join("\n", briefs);
-        check("briefs 含六组全名", BuiltinGroups.GROUP_NAMES.stream()
+        check("briefs 含七组全名", BuiltinGroups.GROUP_NAMES.stream()
                 .allMatch(g -> briefText.contains("builtin:core:" + g)), briefText);
         check("briefs 不含详解（省 token 的分界）",
                 !briefText.contains("ISO 周跨月") && !briefText.contains("不是抹掉"),
@@ -160,8 +161,9 @@ public final class BuiltinCheck {
         // ── ④ 失败形态 ─────────────────────────────────────────────
         System.out.println("== 4 失败形态（模型错 vs 宿主错） ==");
         Result unknown = kit.call("todo", "todo_explode", Map.of());
-        check("未知工具 → Error 且提示查清单",
-                unknown instanceof Result.Error && ((Result.Error) unknown).desc().contains("tool_search"),
+        check("未知工具 → Error 且提示查清单（提示里的工具名必须真实存在）",
+                unknown instanceof Result.Error && ((Result.Error) unknown).desc().contains("tool_list")
+                        && ((Result.Error) unknown).desc().contains("tool_help"),
                 String.valueOf(unknown));
         Result missing = kit.call("todo", "todo_add", Map.of());
         check("参数缺失 → Error（不是抛异常）", missing instanceof Result.Error,
@@ -211,12 +213,81 @@ public final class BuiltinCheck {
         System.out.println("== 7 清单与执行面同源 ==");
         int declared = BuiltinGroups.all().stream()
                 .mapToInt(p -> p.describe().tools().size()).sum();
-        check("清单工具数 = 注册数 = 32", declared == 32 && declared == reg.toolCount(),
+        check("清单工具数 = 注册数 = 35", declared == 35 && declared == reg.toolCount(),
                 "清单 " + declared + " / 注册 " + reg.toolCount());
         check("每组工具都有 usage + params（拒载规则自己先过）",
                 reg.groups().stream().flatMap(g -> g.tools().stream())
                         .allMatch(t -> t.usage() != null && !t.usage().isBlank() && t.params() != null
                                 && !t.params().isEmpty()), "");
+
+        // ── ⑧ 工具目录与工作集（第 7 组，2026-10-27） ────────────────
+        System.out.println("== 8 工具目录与工作集 ==");
+        var me = core.forCaller("toolcheck");
+        String block = reg.injectionBlock();
+        check("注入块含分组用法说明", block.contains("【工具的分组方式】")
+                && block.contains("tool_help") && block.contains("tool_scope"), block);
+        check("注入块按来源分节", block.contains("[builtin:core] 7 组"), block);
+        check("注入块**不含组内工具名**（组内工具信息不主动注入）",
+                !block.contains("todo_mark") && !block.contains("group_send"), block);
+        check("注入块每组带工具数", block.contains("builtin:core:todo — ") && block.contains("  (6)"), block);
+
+        check("组详解含完整目录（全部成员名）", reg.groups().stream().allMatch(g ->
+                        g.details() != null && g.tools().stream().allMatch(t -> g.details().contains(t.name()))),
+                "有组详解缺成员");
+
+        Result catList = me.tools().call("tool", "tool_list", Map.of());
+        check("tool_list 列组并给下一步用法", ok(catList) && data(catList).contains("builtin:core:tool")
+                && data(catList).contains("tool_help"), data(catList));
+        Result listBuiltin = me.tools().call("tool", "tool_list", Map.of("source", "builtin"));
+        check("tool_list 来源过滤生效", ok(listBuiltin) && !data(listBuiltin).contains("[mod:"), data(listBuiltin));
+
+        check("未取用时工作集为空", !core.exposure().isActive("toolcheck", "builtin:core:todo"), "");
+        Result catHelp = me.tools().call("tool", "tool_help", Map.of("targets", "todo"));
+        check("tool_help 组级给成员名单", ok(catHelp) && data(catHelp).contains("todo_mark")
+                && data(catHelp).contains("成员 6 个"), data(catHelp));
+        check("tool_help 组级**不含参数**（第三跳留给 组.工具）", ok(catHelp) && !data(catHelp).contains("required"),
+                data(catHelp));
+        check("tool_help 后该组进入工作集", core.exposure().isActive("toolcheck", "builtin:core:todo"), "");
+
+        Result helpTool = me.tools().call("tool", "tool_help", Map.of("targets", "todo.todo_mark"));
+        check("tool_help 工具级给用法 + 参数", ok(helpTool) && data(helpTool).contains("用法:")
+                && data(helpTool).contains("参数:"), data(helpTool));
+        check("组内筛选：只取了 todo_mark，未取的组仍是空工作集",
+                !core.exposure().isActive("toolcheck", "builtin:core:notes"), "");
+
+        Result tooMany = me.tools().call("tool", "tool_help",
+                Map.of("targets", "todo,notes,session,memory,group"));
+        check("tool_help 超过 4 个 → Error", tooMany instanceof Result.Error, String.valueOf(tooMany));
+
+        Result scopeAdd = me.tools().call("tool", "tool_scope", Map.of("action", "add", "target", "notes"));
+        check("tool_scope add 生效", ok(scopeAdd) && core.exposure().isActive("toolcheck", "builtin:core:notes"),
+                data(scopeAdd));
+        Result scopeRm = me.tools().call("tool", "tool_scope", Map.of("action", "remove", "target", "notes"));
+        check("tool_scope remove 生效", ok(scopeRm) && !core.exposure().isActive("toolcheck", "builtin:core:notes"),
+                data(scopeRm));
+
+        check("目录组恒在（元工具不可裁）",
+                core.exposure().isActive("toolcheck", ToolExposure.CATALOG_GROUP), "");
+        check("工作集不影响权限（isEnabled 不变）", reg.isEnabled("builtin:core:todo"), "");
+        check("无组提示每工具每会话只给一次", core.exposure().markSoloNotified("toolcheck", "x.y")
+                && !core.exposure().markSoloNotified("toolcheck", "x.y"), "");
+
+        // 保留名与详解 WARN（直接对注册表做，不经 bootstrap——bootstrap 里的清单是合法的）
+        ToolRegistry scratch = new ToolRegistry();
+        boolean soloTaken = scratch.register(new ToolRegistry.Group(
+                new snowleopard.core.names.Names.Qualified(
+                        snowleopard.core.names.Names.SourceType.MOD, "x", "solo"),
+                "c", "s", "d", Availability.NORMAL,
+                List.of(new ToolRegistry.Tool("t", "s", "u", Map.of("type", "object")))), false);
+        check("「solo」是保留组名（真组撞名拒载）", !soloTaken, "真组占了 solo");
+        boolean noDetails = scratch.register(new ToolRegistry.Group(
+                new snowleopard.core.names.Names.Qualified(
+                        snowleopard.core.names.Names.SourceType.MOD, "y", "g2"),
+                "c", "s", null, Availability.NORMAL,
+                List.of(new ToolRegistry.Tool("t2", "s", "u", Map.of("type", "object")))), false);
+        check("详解缺失只 WARN 不拒载", noDetails && scratch.issues().stream().anyMatch(i ->
+                        i.level() == snowleopard.core.report.Issue.Level.WARN && i.message().contains("详解缺失")),
+                String.valueOf(scratch.issues()));
 
         System.out.println((fail == 0 ? "PASS" : "FAIL") + " builtin: 通过 " + pass + " · 失败 " + fail);
         if (fail > 0) {
