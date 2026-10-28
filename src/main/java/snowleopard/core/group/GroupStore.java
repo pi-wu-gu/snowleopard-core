@@ -683,7 +683,11 @@ public final class GroupStore {
             }
             return new Meta(str(m, "gid"), str(m, "name"), str(m, "creator"),
                     (long) num(m, "createdTs"), members);
-        } catch (IOException | IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
+            // 文件在、JSON 坏了 ≠ "这东西不存在"：静默 return null 会让调用方以为群丢了/状态是空的，
+            // 而真实原因是半写或磁盘问题。按"失败必须抛异常"处理（core 无日志依赖，靠异常上报）。
+            throw new IllegalStateException("群元数据损坏: " + e.getMessage(), e);
+        } catch (IOException e) {
             return null;
         }
     }
@@ -788,7 +792,11 @@ public final class GroupStore {
                 return out;
             }
             return null;
-        } catch (IOException | IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
+            // 文件在、JSON 坏了 ≠ "这东西不存在"：静默 return null 会让调用方以为群丢了/状态是空的，
+            // 而真实原因是半写或磁盘问题。按"失败必须抛异常"处理（core 无日志依赖，靠异常上报）。
+            throw new IllegalStateException("群状态文件损坏: " + e.getMessage(), e);
+        } catch (IOException e) {
             return null;
         }
     }

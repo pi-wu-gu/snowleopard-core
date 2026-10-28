@@ -117,7 +117,9 @@ public final class BuiltinToolkit {
         // week/month/quarter/year
         try {
             Periods.Level lv = Periods.Level.of(level);
-            return Result.ok(java.util.Map.of(level + "s", home.memory().keys(lv)));
+            // 键名统一小写：传 "WEEK" 时旧写法会拼出 "WEEKs"（能跑，但键名大小写随调用方漂移）
+            return Result.ok(java.util.Map.of(level.toLowerCase(java.util.Locale.ROOT) + "s",
+                    home.memory().keys(lv)));
         } catch (IllegalArgumentException e) {
             return Result.error(e.getMessage());
         }
