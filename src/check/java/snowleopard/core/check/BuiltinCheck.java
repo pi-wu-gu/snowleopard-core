@@ -58,7 +58,7 @@ public final class BuiltinCheck {
         check("任务/笔记 NORMAL（可关）",
                 avail(reg, "builtin:core:todo") == Availability.NORMAL
                         && avail(reg, "builtin:core:notes") == Availability.NORMAL, "");
-        check("工具总数 35（四基础组 18 + 唤醒 4 + 群组 10 + 目录 3）", reg.toolCount() == 35,
+        check("工具总数 36（四基础组 19 + 唤醒 4 + 群组 10 + 目录 3）", reg.toolCount() == 36,
                 "实际 " + reg.toolCount());
         List<String> briefs = reg.briefs();
         String briefText = String.join("\n", briefs);
@@ -213,7 +213,7 @@ public final class BuiltinCheck {
         System.out.println("== 7 清单与执行面同源 ==");
         int declared = BuiltinGroups.all().stream()
                 .mapToInt(p -> p.describe().tools().size()).sum();
-        check("清单工具数 = 注册数 = 35", declared == 35 && declared == reg.toolCount(),
+        check("清单工具数 = 注册数 = 36", declared == 36 && declared == reg.toolCount(),
                 "清单 " + declared + " / 注册 " + reg.toolCount());
         check("每组工具都有 usage + params（拒载规则自己先过）",
                 reg.groups().stream().flatMap(g -> g.tools().stream())
