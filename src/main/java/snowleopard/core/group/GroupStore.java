@@ -433,7 +433,8 @@ public final class GroupStore {
 
     /** 未读概览：{@code g00001(5) g00002(1)}；全无未读 → 空串（供汇总行用）。 */
     public String unreadSummary(String actor) {
-        StringBuilder b = new StringBuilder();
+        java.util.List<String> parts = new java.util.ArrayList<>();
+        int total = 0;
         for (Meta m : allMeta()) {
             if (m.roleOf(actor) == null) {
                 continue;
@@ -442,13 +443,22 @@ public final class GroupStore {
             long lastRead = st == null ? 0 : num(st, "lastReadSeq");
             long unread = messages(m.gid()).size() - lastRead;
             if (unread > 0) {
-                if (b.length() > 0) {
-                    b.append(' ');
-                }
-                b.append(m.gid()).append('(').append(unread).append(')');
+                parts.add(m.gid() + "(" + unread + ")");
+                total += unread;
             }
         }
-        return b.toString();
+        if (parts.isEmpty()) {
+            return "";
+        }
+        // **超过 3 个群就折叠**（2026-10-28 真机）：原实现把每个未读群的 id 都列出来，
+        // 十几个群时这一行有几十个字符，**每轮都注入**——模型于是每轮都复述"你有未读消息"，
+        // 玩家看到的就是刷屏。未读的语义是"有东西没读"，不需要在这里给出完整清单；
+        // 模型想看具体是哪些群，用 group 组工具查（那里才是数据面）。
+        if (parts.size() <= 3) {
+            return String.join(" ", parts);
+        }
+        return "共 " + total + " 条（" + String.join(" ", parts.subList(0, 3))
+                + " 等 " + parts.size() + " 个群）";
     }
 
     /** 尚未提示过的新消息（"新增消息提示仅一次"的落点）：{@code gid → seqs}。 */
